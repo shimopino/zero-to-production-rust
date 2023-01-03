@@ -5,6 +5,7 @@
 - [Zero to Production in Rust](#zero-to-production-in-rust)
   - [環境設定](#環境設定)
   - [API の仕様](#api-の仕様)
+  - [CI の検証](#ci-の検証)
 
 ## 環境設定
 
@@ -60,3 +61,25 @@ cargo audit
 - ブログの著者として、購読者に対してメールを送信したい、なぜなら、新しい記事を執筆したことを購読者に教えたいからだ
 
 はじめから上記の仕様を満たした上で非機能的な内容も実装するのではなく、最初は仕様をある程度満たすようにサービスを構築していき、徐々に耐障害性やリトライ機能の追加、新規購読者への確認メールなどを追加していく
+
+## CI の検証
+
+CI パイプラインで使用する Github Actions をローカルで検証するために [nektos/act](https://github.com/nektos/act) を使用する
+
+```bash
+# nektos/act をインストールする
+brew install act
+
+# 実行できるパイプラインの一覧を表示する
+act -l
+
+# 実行
+# 何も指定しなければ push イベントで実行する
+act
+
+# 特定のイベントで実行
+act pull_request
+
+# 特定のジョブを実行
+act -j test
+```
