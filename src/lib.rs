@@ -1,13 +1,13 @@
-use actix_web::{web, App, HttpResponse, HttpServer};
+use actix_web::{dev::Server, web, App, HttpResponse, HttpServer};
 
 async fn health_check() -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
-pub async fn run() -> std::io::Result<()> {
+pub fn run() -> Result<Server, std::io::Error> {
     // HttpServerはトランスポート層の課題を解決する
     // IPアドレスとポート番号の組み合わせや、最大接続数などを設定できる
-    HttpServer::new(|| {
+    let server = HttpServer::new(|| {
         // アプリケーション層の課題を解決する
         // ルーティングやミドルウェア、リクエストハンドラなどを解決する
         // Builder Patternsの実践例であることがわかる
@@ -19,6 +19,9 @@ pub async fn run() -> std::io::Result<()> {
             .route("/health_check", web::get().to(health_check))
     })
     .bind("127.0.0.1:8000")?
-    .run()
-    .await
+    .run();
+    // awaitでリッスン状態にするのではなく、初期化した状態のサーバーを返却するように変更する
+    // .await
+
+    Ok(server)
 }
