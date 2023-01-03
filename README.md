@@ -6,6 +6,7 @@
   - [環境設定](#環境設定)
   - [API の仕様](#api-の仕様)
   - [CI の検証](#ci-の検証)
+  - [基礎](#基礎)
 
 ## 環境設定
 
@@ -82,4 +83,68 @@ act pull_request
 
 # 特定のジョブを実行
 act -j test
+```
+
+## 基礎
+
+Rust で API を構築するために [actix-web](https://actix.rs/) を使用する
+
+公式が提供しているサンプルコード通りに実装して挙動を確認する
+
+```rs
+use actix_web::{web, App, HttpRequest, HttpServer, Responder};
+
+async fn greet(req: HttpRequest) -> impl Responder {
+    let name = req.match_info().get("name").unwrap_or("World");
+    format!("Hello {}!", &name)
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    HttpServer::new(|| {
+        App::new()
+            .route("/", web::get().to(greet))
+            .route("/{name}", web::get().to(greet))
+    })
+    .bind("127.0.0.1:8000")?
+    .run()
+    .await
+}
+```
+
+これでサーバーを起動して HTTP リクエストを送信すれば、レスポンスが返ってくることがわかる
+
+```bash
+>> cargo run
+
+>> curl http://127.0.0.1:8000/shimokawa
+Hello shimokawa!%
+```
+
+このコードが具体的に何をしているのかは、マクロを展開できる `cargo-expand` を使用すればある程度把握することができる
+
+```bash
+>> cargo install cargo-expand
+>> rustup toolchain install nightly --allow-downgrade
+>> cargo +nightly expand
+```
+
+これでマクロを展開すると、以下のように `main` 関数から非同期処理の `async` キーワードがなくなり、非同期のランタイムを起動して `Future` が完了することを期待していることがわかる
+
+```rs
+fn main() -> std::io::Result<()> {
+    <::actix_web::rt::System>::new()
+        .block_on(async move {
+            {
+                HttpServer::new(|| {
+                        App::new()
+                            .route("/", web::get().to(greet))
+                            .route("/{name}", web::get().to(greet))
+                    })
+                    .bind("127.0.0.1:8000")?
+                    .run()
+                    .await
+            }
+        })
+}
 ```
