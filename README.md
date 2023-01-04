@@ -9,6 +9,7 @@
   - [基礎](#基礎)
   - [Rust でのテストのやり方](#rust-でのテストのやり方)
   - [テストで仕様を表現する](#テストで仕様を表現する)
+  - [データベースの操作](#データベースの操作)
 
 ## 環境設定
 
@@ -184,3 +185,82 @@ name = "zero2prod"
 ## テストで仕様を表現する
 
 ニュースレターの購読を行う際に、ユーザーに有効であり、識別子となる名前とメールアドレスのペアを入力してもらい、どちらかが欠けていれば `Bad Request` として返却することを考える
+
+リクエストボディに対して下記のようにパラメータを設定する（今回は JSON 形式ではないの、そのまま文字列形式のまま送信している）
+
+```rs
+#[tokio::test]
+async fn subscribe_returns_a_200_for_valid_form_data() {
+    // Arrange
+    let address = spwan_app();
+    let client = reqwest::Client::new();
+
+    // Act
+    // パーセントエンコーディングのため、空白は %20 でエンコードされている
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+    let response = client
+        .post(&format!("{}/subscriptions", &address))
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body(body)
+        .send()
+        .await
+        .expect("Failed to execute request.");
+
+    // Assert
+    assert_eq!(200, response.status().as_u16());
+}
+```
+
+## データベースの操作
+
+この書籍では Rust のエコシステムのうち、下記の 3 つの観点からどのクレートを使用するのか選定している
+
+- コンパイル時の安全性
+- SQL first なのか DSL first なのか
+- async なのか async のインターフェースなのか
+
+本書では `sqlx` を使用する
+
+これはコンパイル時に型エラーなどを検知して失敗させ、SQL 駆動でクエリを発行し、非同期インターフェースをサポートしている
+
+データベースを使用することで副作用が発生するようになるが、テスト時の検証する方法として複数の公開 API を組み合わせてテストする方法と、直接 SQL を発行してデータベースの状態を検証する方法が存在している
+
+今回はまず SQL クエリを発行する形式で進めていき、データを取得する API が完成した段階でテストをリファクタリングしていく
+
+```bash
+>> cargo install --version="~0.6" sqlx-cli --no-default-features \
+    --feature rustls,postgres
+
+>> sqlx --help
+sqlx-cli 0.6.2
+Jesper Axelsson <jesperaxe@gmail.com>, Austin Bonander <austin.bonander@gmail.com>
+Command-line utility for SQLx, the Rust SQL toolkit.
+
+USAGE:
+    sqlx <SUBCOMMAND>
+
+OPTIONS:
+    -h, --help       Print help information
+    -V, --version    Print version information
+
+SUBCOMMANDS:
+    database    Group of commands for creating and dropping your database
+    help        Print this message or the help of the given subcommand(s)
+    migrate     Group of commands for creating and running migrations
+    prepare     Generate query metadata to support offline compile-time verification
+```
+
+マイグレーションを行う場合には下記のように実施する
+
+```bash
+>> export DATABASE_URL=postgres://postgres:password@127.0.0.1:5432/newsletter
+>> sqlx migrate add create_subscriptions_table
+```
+
+これでトップディレクトリに `migrations` というマイグレーションを管理するためのディレクトリが作成され、そこに空のファイルが格納されていることがわかる
+
+マイグレーションファイルの準備ができればあとは実行するのみである
+
+```bash
+>> sqlx migrate run
+```
