@@ -1,19 +1,23 @@
+use sqlx::PgPool;
 use std::net::TcpListener;
-
-use sqlx::{Connection, PgConnection};
 use zero2prod::configuration::get_configuration;
+
+pub struct TestApp {
+    pub address: String,
+    pub db_pool: PgPool,
+}
 
 #[tokio::test]
 async fn health_check_test() {
     // Arrange
-    let address = spwan_app();
+    let app = spwan_app().await;
 
     // HTTPリクエストを送信するためのテストクライアントを初期化
     let client = reqwest::Client::new();
 
     // Act
     let response = client
-        .get(&format!("{}/health_check", &address))
+        .get(&format!("{}/health_check", &app.address))
         .send()
         .await
         .expect("Failed to execute request.");
@@ -26,13 +30,7 @@ async fn health_check_test() {
 #[tokio::test]
 async fn subscribe_returns_a_200_for_valid_form_data() {
     // Arrange
-    let address = spwan_app();
-    // DBに接続する
-    let configuration = get_configuration().expect("Failed to read configuration");
-    let connection_string = configuration.database.connection_string();
-    let mut connection = PgConnection::connect(&connection_string)
-        .await
-        .expect("Failed to connect to Postgres");
+    let app = spwan_app().await;
     // Httpリクエストを送信するためのクライアントを作成
     let client = reqwest::Client::new();
 
@@ -40,7 +38,7 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
     // パーセントエンコーディングのため、空白は %20 でエンコードされている
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
     let response = client
-        .post(&format!("{}/subscriptions", &address))
+        .post(&format!("{}/subscriptions", &app.address))
         .header("Content-Type", "application/x-www-form-urlencoded")
         .body(body)
         .send()
@@ -52,7 +50,7 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
 
     // .env ファイルに DATABASE_URL の環境変数が設定されている前提となる
     let saved = sqlx::query!("SELECT email, name FROM subscriptions",)
-        .fetch_one(&mut connection)
+        .fetch_one(&app.db_pool)
         .await
         .expect("Failed to fetch saved subscription.");
 
@@ -63,7 +61,7 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
 #[tokio::test]
 async fn subscribe_returns_a_400_when_data_is_missing() {
     // Arrange
-    let address = spwan_app();
+    let app = spwan_app().await;
     let client = reqwest::Client::new();
     let test_cases = vec![
         ("name=le%20guin", "missing the email"),
@@ -74,7 +72,7 @@ async fn subscribe_returns_a_400_when_data_is_missing() {
     for (invalid_body, error_message) in test_cases {
         // Act
         let response = client
-            .post(&format!("{}/subscriptions", &address))
+            .post(&format!("{}/subscriptions", &app.address))
             .header("Content-Type", "application/x-www-form-urlencode")
             .body(invalid_body)
             .send()
@@ -94,7 +92,7 @@ async fn subscribe_returns_a_400_when_data_is_missing() {
 
 // アプリケーションコードに依存している箇所は唯一ここだけ
 // 内容はほとんど src/main.rs に記載している内容とほとんど同じである
-fn spwan_app() -> String {
+async fn spwan_app() -> TestApp {
     // 以下のコードだと、await実行時にサーバーがリッスン状態になってしまいテストが終了しない
     // zero2prod::run().await
 
@@ -102,14 +100,25 @@ fn spwan_app() -> String {
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
     // OSから割り当てられているポート番号を取得する
     let port = listener.local_addr().unwrap().port();
+    let address = format!("http://127.0.0.1:{}", port);
+
+    // DB接続を取得する
+    let configuration = get_configuration().expect("Failed to read configuration");
+    let connection_pool = PgPool::connect(&configuration.database.connection_string())
+        .await
+        .expect("Failed to connect to Postgres");
 
     // そこで tokio::spawn を使用してバックグラウンドで起動して
     // Futureを受け取って、その完了を待つ必要なくポーリングできるようにする
     // ここではポート番号をライブラリなどから取得する必要がある
-    let server = zero2prod::startup::run(listener).expect("Failed to bind address.");
+    let server = zero2prod::startup::run(listener, connection_pool.clone())
+        .expect("Failed to bind address.");
     // サーバーをバックグラウンドでのタスクとして起動する
     // tokio::spawn はFutureを処理するためのハンドラを返し、テストとして使用する
     let _ = tokio::spawn(server);
 
-    format!("http://127.0.0.1:{}", port)
+    TestApp {
+        address,
+        db_pool: connection_pool,
+    }
 }
