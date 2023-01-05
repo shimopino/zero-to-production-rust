@@ -12,6 +12,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 # [derive(Serialize)] と #[derive(Deserialize)]
 # デフォルトだとインストールされないため、明治的に指定する
 serde = { version = "1", features = ["derive"]}
+config = "0.13"
 
 # テーブル形式で細かく依存関係の条件を指定する
 [dependencies.sqlx]
@@ -25,7 +26,7 @@ features = [
     "chrono", # timestamptz を DateTime<T> にマッピングする
     "migrate"
 ]
-config = "0.13"
+
 
 [dev-dependencies]
 reqwest = "0.11"
