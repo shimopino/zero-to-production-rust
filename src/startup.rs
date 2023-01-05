@@ -1,5 +1,5 @@
 use crate::routes::{health_check, subscribe};
-use actix_web::{dev::Server, web, App, HttpServer};
+use actix_web::{dev::Server, middleware::Logger, web, App, HttpServer};
 use sqlx::PgPool;
 use std::net::TcpListener;
 
@@ -14,6 +14,8 @@ pub fn run(listener: TcpListener, db_pool: PgPool) -> Result<Server, std::io::Er
         // ルーティングやミドルウェア、リクエストハンドラなどを解決する
         // Builder Patternsの実践例であることがわかる
         App::new()
+            // ミドルウェアは wrap メソッドで追加可能
+            .wrap(Logger::default())
             // ルートパスとリクエストハンドラのペアを登録する
             // web::get() == Route::new().guard(guard::Get())
             // .route("/", web::get().to(greet))
