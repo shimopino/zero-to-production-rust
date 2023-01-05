@@ -3,6 +3,7 @@
     "rust-lang.rust-analyzer",
     "esbenp.prettier-vscode",
     "foxundermoon.shell-format",
-    "clarkyu.vscode-sql-beautify"
+    "clarkyu.vscode-sql-beautify",
+    "IronGeek.vscode-env"
   ]
 }
