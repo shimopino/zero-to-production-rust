@@ -13,5 +13,19 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 # デフォルトだとインストールされないため、明治的に指定する
 serde = { version = "1", features = ["derive"]}
 
+# テーブル形式で細かく依存関係の条件を指定する
+[dependencies.sqlx]
+version="0.6"
+default-features = false
+features = [
+    "runtime-tokio-rustls", # tokioランタイムをTLSバックエンドに対して使用する
+    "macros", # sqlx::query! や sqlx::query_as! といったマクロを使えるようにする
+    "postgres",
+    "uuid",
+    "chrono", # timestamptz を DateTime<T> にマッピングする
+    "migrate"
+]
+config = "0.13"
+
 [dev-dependencies]
 reqwest = "0.11"

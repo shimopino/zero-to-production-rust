@@ -87,7 +87,7 @@ fn spwan_app() -> String {
     // そこで tokio::spawn を使用してバックグラウンドで起動して
     // Futureを受け取って、その完了を待つ必要なくポーリングできるようにする
     // ここではポート番号をライブラリなどから取得する必要がある
-    let server = zero2prod::run(listener).expect("Failed to bind address.");
+    let server = zero2prod::startup::run(listener).expect("Failed to bind address.");
     // サーバーをバックグラウンドでのタスクとして起動する
     // tokio::spawn はFutureを処理するためのハンドラを返し、テストとして使用する
     let _ = tokio::spawn(server);
