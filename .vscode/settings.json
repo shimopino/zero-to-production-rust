@@ -20,7 +20,13 @@
     "editor.defaultFormatter": "rust-lang.rust-analyzer"
   },
   "rust-analyzer.checkOnSave.command": "clippy",
-  "rust-analyzer.cargo.features": "all"
+  "rust-analyzer.cargo.features": "all",
+  "[shellscript]": {
+    "editor.defaultFormatter": "foxundermoon.shell-format"
+  },
+  "[sql]": {
+    "editor.defaultFormatter": "clarkyu.vscode-sql-beautify"
+  }
   // "rust-analyzer.inlayHints.chainingHints": false,
   // "rust-analyzer.inlayHints.parameterHints": false,
   // "rust-analyzer.inlayHints.typeHints": false,
