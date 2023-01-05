@@ -1,5 +1,8 @@
 use std::net::TcpListener;
 
+use sqlx::{Connection, PgConnection};
+use zero2prod::configuration::get_configuration;
+
 #[tokio::test]
 async fn health_check_test() {
     // Arrange
@@ -24,6 +27,13 @@ async fn health_check_test() {
 async fn subscribe_returns_a_200_for_valid_form_data() {
     // Arrange
     let address = spwan_app();
+    // DBに接続する
+    let configuration = get_configuration().expect("Failed to read configuration");
+    let connection_string = configuration.database.connection_string();
+    let connection = PgConnection::connect(&connection_string)
+        .await
+        .expect("Failed to connect to Postgres");
+    // Httpリクエストを送信するためのクライアントを作成
     let client = reqwest::Client::new();
 
     // Act
