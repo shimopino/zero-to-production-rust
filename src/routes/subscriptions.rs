@@ -1,6 +1,7 @@
 use actix_web::{web, HttpResponse};
 use chrono::Utc;
 use sqlx::PgPool;
+use tracing::Instrument;
 use uuid::Uuid;
 
 #[derive(serde::Deserialize)]
@@ -17,18 +18,19 @@ pub async fn subscribe(
 ) -> HttpResponse {
     // もしも何かしら調査が必要になった場合に備えて、情報はログに出力するようにする
     let request_id = Uuid::new_v4();
-    tracing::info!(
-        "request_id {} - Adding '{}' '{}' as a new subscriber",
-        request_id,
+    // Spansを作成してログを出力する
+    // Spanでは key-value な値としてログを登録することで構造化を行う
+    let request_span = tracing::info_span!(
+        "Adding a new subscriber.",
+        %request_id, // % をつけることで Display 実装を使うようにしている
         form.email,
         form.name
     );
-    // ネットワーク経由で外部に接続する箇所は環境や状況に応じてレスポンス時間などが変化する
-    // そのためしっかりとログを出力しておく必要がある
-    tracing::info!(
-        "request_id {} - Saving new subscriber details in the database",
-        request_id
-    );
+    //
+    let _request_span_guard = request_span.enter();
+
+    // enterは実行しない。 .instrument で登録する
+    let query_span = tracing::info_span!("Saving new subscriber details in the database");
     match sqlx::query!(
         r#"
         INSERT INTO subscriptions (id, email, name, subscribed_at)
@@ -40,21 +42,14 @@ pub async fn subscribe(
         Utc::now()
     )
     .execute(pool.get_ref())
+    // await を呼び出す前に tracing を紐づける
+    // これで Future が完了するまでに Executor によって何回ポーリングされたのかわかる
+    .instrument(query_span)
     .await
     {
-        Ok(_) => {
-            tracing::info!(
-                "request_id {} - New subscriber details have been saved",
-                request_id
-            );
-            HttpResponse::Ok().finish()
-        }
+        Ok(_) => HttpResponse::Ok().finish(),
         Err(e) => {
-            tracing::error!(
-                "request_id {} - Failed to execute query: {:?}",
-                request_id,
-                e
-            );
+            tracing::error!("Failed to execute query: {:?}", e);
             HttpResponse::InternalServerError().finish()
         }
     }
