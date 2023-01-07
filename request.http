@@ -1,0 +1,8 @@
+### アプリケーションの起動確認
+GET http://127.0.0.1:8000/health_check
+
+### 新規購読の登録
+POST http://127.0.0.1:8000/subscriptions
+Content-Type: application/x-www-form-urlencoded
+
+email=thomas_mann@hotmail.com&name=Tom
