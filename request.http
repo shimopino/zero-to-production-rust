@@ -5,4 +5,4 @@ GET http://127.0.0.1:8000/health_check
 POST http://127.0.0.1:8000/subscriptions
 Content-Type: application/x-www-form-urlencoded
 
-email=thomas_mann@hotmail.com&name=Tom
+email=thomas_mann@hotgmail.com&name=Tom
