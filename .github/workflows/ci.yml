@@ -60,8 +60,10 @@ jobs:
         id: cache-sqlx
         uses: actions/cache@v2
         with:
+          # サブコマンドもキャッシュするように変更する
           path: |
             ~/.cargo/bin/sqlx
+            ~/.cargo/bin/cargo-sqlx
           key: ${{ runner.os }}-sqlx-${{ env.SQLX_VERSION }}
 
       - name: Install sqlx-cli
