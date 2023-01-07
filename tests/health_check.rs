@@ -1,7 +1,17 @@
+use once_cell::sync::Lazy;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::TcpListener;
 use uuid::Uuid;
-use zero2prod::configuration::{get_configuration, DatabaseSettings};
+use zero2prod::{
+    configuration::{get_configuration, DatabaseSettings},
+    telemetry::{get_sbscriber, init_subscriber},
+};
+
+// tracingスタックの設定は一度だけ呼び出されるように設定する
+static TRACING: Lazy<()> = Lazy::new(|| {
+    let subscriber = get_sbscriber("test".into(), "debug".into());
+    init_subscriber(subscriber);
+});
 
 pub struct TestApp {
     pub address: String,
@@ -96,6 +106,9 @@ async fn subscribe_returns_a_400_when_data_is_missing() {
 async fn spwan_app() -> TestApp {
     // 以下のコードだと、await実行時にサーバーがリッスン状態になってしまいテストが終了しない
     // zero2prod::run().await
+
+    // テスト時に一度だけTRACING設定を呼び出す
+    Lazy::force(&TRACING);
 
     // 接続用のリスナーを用意
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
