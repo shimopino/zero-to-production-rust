@@ -19,6 +19,7 @@ tracing = { version = "0.1", features = ["log"] }
 tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
 tracing-bunyan-formatter = "0.3"
 tracing-log = "0.1"
+secrecy = { version = "0.8", features = ["serde"] }
 
 # テーブル形式で細かく依存関係の条件を指定する
 [dependencies.sqlx]
