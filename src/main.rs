@@ -8,7 +8,7 @@ use zero2prod::{
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    let subscriber = get_sbscriber("zero2prod".into(), "info".into());
+    let subscriber = get_sbscriber("zero2prod".into(), "info".into(), std::io::stdout);
     init_subscriber(subscriber);
 
     // configurationファイルを読めなければパニックさせる
