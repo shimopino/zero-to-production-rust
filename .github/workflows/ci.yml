@@ -82,6 +82,11 @@ jobs:
           sudo apt-get install libpq-dev -y
           SKIP_DOCKER=true ./scripts/init_db.sh
 
+      # 実際のスキーマとメタデータが不整合を起こしていないかどうかを検証する
+      - name: Check sqlx-data.json is up-to-date
+        run: |
+          cargo sqlx prepare --check -- --bin zerp2prod
+
       - uses: actions-rs/cargo@v1
         with:
           command: test

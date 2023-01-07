@@ -4,6 +4,7 @@
     "esbenp.prettier-vscode",
     "foxundermoon.shell-format",
     "clarkyu.vscode-sql-beautify",
-    "IronGeek.vscode-env"
+    "IronGeek.vscode-env",
+    "ms-azuretools.vscode-docker"
   ]
 }
