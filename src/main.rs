@@ -14,12 +14,15 @@ async fn main() -> std::io::Result<()> {
 
     // configurationファイルを読めなければパニックさせる
     let configuration = get_configuration().expect("Failed to read configuration");
+    // Poolを初めて使用される時にのみ、接続を確立しようとする
     let connection_pool =
-        PgPool::connect(configuration.database.connection_string().expose_secret())
-            .await
+        PgPool::connect_lazy(configuration.database.connection_string().expose_secret())
             .expect("Failed to connect to Postgres");
 
-    let address = format!("127.0.0.1:{}", configuration.application_port);
+    let address = format!(
+        "{}:{}",
+        configuration.application.host, configuration.application.port
+    );
     let address = TcpListener::bind(address)?;
     run(address, connection_pool)?.await
 }

@@ -6,4 +6,6 @@ COPY . .
 # sqlx-data.jsonを使用してコンパイルを行う
 ENV SQLX_OFFLINE true
 RUN cargo build --release
+# プロダクション用の設定ファイルを指定する
+ENV APP_ENVIRONMENT production
 ENTRYPOINT [ "./target/release/zero2prod" ]
