@@ -30,7 +30,10 @@
   // メソッドチェーンをした時に中間では型推論結果を表示しない
   "rust-analyzer.inlayHints.chainingHints.enable": false,
   // 関数のパラメータの型推論を表示しない
-  "rust-analyzer.inlayHints.parameterHints.enable": false
+  "rust-analyzer.inlayHints.parameterHints.enable": false,
+  "[dockerfile]": {
+    "editor.defaultFormatter": "ms-azuretools.vscode-docker"
+  }
   // "rust-analyzer.inlayHints.chainingHints": false,
   // "rust-analyzer.inlayHints.parameterHints": false,
   // "rust-analyzer.inlayHints.typeHints": false,

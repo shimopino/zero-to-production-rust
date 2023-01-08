@@ -32,7 +32,8 @@ features = [
     "postgres",
     "uuid",
     "chrono", # timestamptz を DateTime<T> にマッピングする
-    "migrate"
+    "migrate",
+    "offline" # オフラインモードを使用してコンパイルできるようにする
 ]
 
 [dev-dependencies]

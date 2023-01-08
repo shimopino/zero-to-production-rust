@@ -1,6 +1,8 @@
 watch:
 	cargo watch -x check -x test -x run
 
-# test:
-# 	cargo install bunyan
-# 	TEST_LOG=true cargo test health_check | bunyan
+docker-build:
+	docker build --tag zero2prod --file Dockerfile .
+
+docker-run:
+	docker container run -p 8000:8000 zero2prod

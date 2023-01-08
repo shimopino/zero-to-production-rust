@@ -60,8 +60,10 @@ jobs:
         id: cache-sqlx
         uses: actions/cache@v2
         with:
+          # サブコマンドもキャッシュするように変更する
           path: |
             ~/.cargo/bin/sqlx
+            ~/.cargo/bin/cargo-sqlx
           key: ${{ runner.os }}-sqlx-${{ env.SQLX_VERSION }}
 
       - name: Install sqlx-cli
@@ -81,6 +83,11 @@ jobs:
         run: |
           sudo apt-get install libpq-dev -y
           SKIP_DOCKER=true ./scripts/init_db.sh
+
+      # 実際のスキーマとメタデータが不整合を起こしていないかどうかを検証する
+      - name: Check sqlx-data.json is up-to-date
+        run: |
+          cargo sqlx prepare --check -- --bin zero2prod
 
       - uses: actions-rs/cargo@v1
         with:
