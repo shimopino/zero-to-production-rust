@@ -32,7 +32,7 @@ use std::net::SocketAddr;
 #[tokio::main]
 async fn main() {
     // トップレベルのルーティングを作成する
-    let app = Router::new().route("/", get(handler));
+    let app = Router::new().route("/health_check", get(handler));
 
     // 実行する
     let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
@@ -54,7 +54,7 @@ async fn handler() -> &'static str {
 
 ```bash
 ### Health Check
-GET http://127.0.0.1:8080
+GET http://127.0.0.1:8080/health_check
 
 ### Result
 HTTP/1.1 200 OK
@@ -76,7 +76,7 @@ hello world
 ```rs
 #[tokio::main]
 async fn main() {
-    let app = Router::new().route("/", get(handler));
+    let app = Router::new().route("/health_check", get(handler));
 }
 
 // 単純にテキストを返すだけのエンドポイントを作成する
@@ -139,7 +139,7 @@ use axum::{routing::get, Router};
 use std::net::SocketAddr;
 fn main() {
     let body = async {
-        let app = Router::new().route("/", get(handler));
+        let app = Router::new().route("/health_check", get(handler));
         let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
         {
             ::std::io::_print(format_args!("listening on {0}\n", addr));
