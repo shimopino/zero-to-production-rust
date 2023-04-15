@@ -243,3 +243,16 @@ async fn health_check_works() {
     assert_eq!(response.status(), StatusCode::OK);
 }
 ```
+
+またリクエストボディを検査するために、 `hyper` ライブラリを追加してレスポンスボディを変換できるようにする
+
+```bash
+$ cargo add --dev hyper
+```
+
+これで以下のようにレスポンスボディを検証することができる
+
+```rs
+let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+assert_eq!(&body[..], b"hello world");
+```

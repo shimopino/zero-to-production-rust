@@ -17,4 +17,5 @@ axum = "0.6.15"
 tokio = { version = "1.27.0", features = ["full"] }
 
 [dev-dependencies]
+hyper = "0.14.26"
 tower = "0.4.13"
