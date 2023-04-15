@@ -67,6 +67,58 @@ hello world
 
 ## 細かい実装の中身を見てみる
 
+### Router
+
+[Router](https://docs.rs/axum/latest/axum/routing/struct.Router.html) の役割を確認する
+
+これは HTTP のパスと対応するハンドラーを設定するための構造体であり、ベースとして `hyper` と同じようにハンドラーを設定することができる
+
+```rs
+#[tokio::main]
+async fn main() {
+    let app = Router::new().route("/", get(handler));
+}
+
+// 単純にテキストを返すだけのエンドポイントを作成する
+async fn handler() -> &'static str {
+    "hello world"
+}
+```
+
+このルーティングに関してハンドラー関数は `IntoResponse` を実装した型であれば値を返却することが可能である
+
+今回は `'static str` をレスポンスとして返却しているが、これは公式で以下のようにトレイトを実装しているため、レスポンスに指定することが可能である
+
+```rs
+impl IntoResponse for &'static str {
+    fn into_response(self) -> Response {
+        Cow::Borrowed(self).into_response()
+    }
+}
+
+
+impl IntoResponse for Cow<'static, str> {
+    fn into_response(self) -> Response {
+        let mut res = Full::from(self).into_response();
+        res.headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static(mime::TEXT_PLAIN_UTF_8.as_ref()),
+        );
+        res
+    }
+}
+```
+
+- [axum-core/src/response/into_response.rs](https://github.com/tokio-rs/axum/blob/7219fd8df520d295faa42b59f77e25ca2818b6b1/axum-core/src/response/into_response.rs#L232-L236)
+
+ここで使用されている `Cow` は `Borrowed` と `Owned` という 2 つのバリアントを持っている列挙子であり、データへの参照を保持するのか、データの所有権を持つのか選択することが可能である
+
+この実装のおかげで静的な文字列の参照である `'static str` から `Response` に変換することができるようになっており、 `Cow<'static str>` 自体も Response を返却するように実装されていることがわかる
+
+この性質を使えば `IntoResponse` を実装した独自の型を定義することも可能である
+
+### tokio のマクロ
+
 `cargo-expand` パッケージを使用すれば、マクロを展開してどのようなコードが実行されているのかを確認することができる。
 
 ```bash
