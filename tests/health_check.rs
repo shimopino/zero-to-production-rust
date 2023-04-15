@@ -16,7 +16,7 @@ async fn health_check_works() {
                 .unwrap(),
         )
         .await
-        .unwrap();
+        .expect("Failed to execute request.");
 
     assert_eq!(response.status(), StatusCode::OK);
 
