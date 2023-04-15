@@ -16,6 +16,7 @@
   },
   "[ignore]": {
     "editor.defaultFormatter": "foxundermoon.shell-format"
-  }
+  },
+  "rust-analyzer.linkedProjects": ["./Cargo.toml"]
   // rust-analyzerに関する設定
 }

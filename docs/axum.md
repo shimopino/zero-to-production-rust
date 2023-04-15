@@ -1,5 +1,13 @@
 # axum
 
+- [axum](#axum)
+  - [クレートのインストール](#クレートのインストール)
+  - [Hello World](#hello-world)
+  - [細かい実装の中身を見てみる](#細かい実装の中身を見てみる)
+    - [Router](#router)
+    - [tokio のマクロ](#tokio-のマクロ)
+  - [結合テストを作成する](#結合テストを作成する)
+
 Web フレームワークとして `axum` を利用する。これは非同期ランタイムである `tokio` を作成しているチームがコミットしているライブラリである。
 
 `tokio` ベースの HTTP サーバーである `tower` などを利用することができる。
@@ -157,5 +165,81 @@ fn main() {
 }
 async fn handler() -> &'static str {
     "hello world"
+}
+```
+
+## 結合テストを作成する
+
+Rust プロジェクトでは `tests` ディレクトリを作成してテストを実行することができ、このテストパターンではファイル内のテストとは異なり、作成しているライブラリの外部からアクセスすることが前提であり、公開 API ベースのテストを実施したい場合に適している
+
+まずはこのテストを実行するために `tests` ディレクトリからプロダクションコードにアクセスできるようにする必要がある
+
+```toml
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+path = "src/main.rs"
+name = "zero2prod"
+```
+
+axum で結合テストを実施するために公式ドキュメントのサンプルを参考にする
+
+- [testing](https://github.com/tokio-rs/axum/blob/main/examples/testing/src/main.rs)
+
+このコードから分かるようにアプリケーション側からは `Router` を作成する関数をエクスポートして、結合テストの中でサーバーを起動するようなコードを記載すればよい。
+
+```rs
+use axum::Router;
+use axum::routing::get;
+
+pub fn create_app() -> Router {
+    let app = Router::new()
+        .route("/health_check", get(handler));
+
+    app
+}
+```
+
+あとはこの関数で作成した `Router` を利用して HTTP リクエストを送信するようにすればいい
+
+```rs
+use tower::Service; // for `call`
+use tower::ServiceExt; // for `oneshot` and `ready`
+
+let response = create_app().oneshot(
+    Request::builder()
+        .uri("/health_check")
+        .body(Body::empty())
+        .unwrap()
+).await.unwrap();
+
+assert_eq!(response.status(), StatusCode::OK)
+```
+
+ここではテストのために `tower` ライブラリを使用しているため、開発時に使用するライブラリとして追加する
+
+```bash
+$ cargo add --dev tower
+```
+
+これで以下のようにテストケースを記述すれば、エンドポイントレベルでのテストを実行することができるようになった
+
+```rs
+#[tokio::test]
+async fn health_check_works() {
+    let app = zero2prod::create_app();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/health_check")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
 }
 ```

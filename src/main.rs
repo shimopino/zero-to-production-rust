@@ -1,21 +1,8 @@
-use axum::{routing::get, Router};
-use std::net::SocketAddr;
+use zero2prod::run;
 
 #[tokio::main]
-async fn main() {
-    // トップレベルのルーティングを作成する
-    let app = Router::new().route("/health_check", get(handler));
+async fn main() -> Result<(), std::io::Error> {
+    run().await;
 
-    // 実行する
-    let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
-    println!("listening on {}", addr);
-
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
-}
-
-async fn handler() -> &'static str {
-    "hello world"
+    Ok(())
 }
