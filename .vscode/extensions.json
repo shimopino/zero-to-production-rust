@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "rust-lang.rust-analyzer",
+    "esbenp.prettier-vscode",
+    "foxundermoon.shell-format",
+    "adpyke.vscode-sql-formatter",
+    "IronGeek.vscode-env",
+    "ms-azuretools.vscode-docker",
+    "github.vscode-github-actions"
+  ]
+}
