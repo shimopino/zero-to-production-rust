@@ -128,8 +128,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install postgresql-client
-        run: sudo apt-get update && sudo apt-get install postgresql-client -y
       - uses: Swatinem/rust-cache@v2
         with:
           key: sqlx-${{ env.SQLX_VERSION }}
@@ -139,6 +137,8 @@ jobs:
           --features ${{ env.SQLX_FEATURES }}
           --no-default-features
           --locked
+      - name: Install PostgreSQL client
+        run: sudo apt update && sudo apt install postgresql-client -y
       - name: Migrate database
         run: SKIP_DOCKER=true ./scripts/init_db.sh
       - name: generate .env
