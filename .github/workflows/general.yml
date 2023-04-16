@@ -54,6 +54,8 @@ jobs:
       - name: Linting
         run: cargo clippy -- -D warnings
 
+  # https://github.com/xd009642/tarpaulin#github-actions
+  #
   coverage:
     name: Code coverage
     runs-on: ubuntu-latest
@@ -65,4 +67,10 @@ jobs:
         uses: actions/checkout@v3
       - name: Generate code coverage
         run: |
-          cargo tarpaulin --verbose --workspace
+          cargo tarpaulin --verbose --workspace --out Xml
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v2
+        with:
+          # パブリックなリポジトリなのでトークン設定は不要
+          # token: ${{secrets.CODEDEV_TOKEN}}
+          fail_ci_if_error: true
