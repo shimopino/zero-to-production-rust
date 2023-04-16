@@ -2,14 +2,22 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
-    Router,
+    Form, Router,
 };
+use serde::Deserialize;
 
 async fn health_check() -> &'static str {
     "hello world"
 }
 
-async fn subscribe() -> impl IntoResponse {
+#[derive(Debug, Deserialize)]
+struct Subscribe {
+    name: String,
+    email: String,
+}
+
+async fn subscribe(Form(input): Form<Subscribe>) -> impl IntoResponse {
+    println!("{}, {}", input.name, input.email);
     StatusCode::CREATED
 }
 

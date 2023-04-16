@@ -32,9 +32,15 @@ async fn subscribe_returns_200_for_valid_from_data() {
 #[tokio::test]
 async fn subscribe_returns_400_when_invalid_body() {
     let test_cases = vec![
-        ("name=shimopino", "email is missing"),
-        ("email=shimopino%40example.com", "name is missing"),
-        ("", "name and email are missing"),
+        (
+            "name=shimopino",
+            "Failed to deserialize form body: missing field `email`",
+        ),
+        (
+            "email=shimopino%40example.com",
+            "Failed to deserialize form body: missing field `name`",
+        ),
+        ("", "Failed to deserialize form body: missing field `name`"),
     ];
 
     let mut app = create_app();
@@ -43,6 +49,10 @@ async fn subscribe_returns_400_when_invalid_body() {
         let request = Request::builder()
             .method(http::Method::POST)
             .uri("/subscriptions")
+            .header(
+                http::header::CONTENT_TYPE,
+                mime::APPLICATION_WWW_FORM_URLENCODED.as_ref(),
+            )
             .body(Body::from(invalid_body))
             .unwrap();
 
@@ -54,11 +64,11 @@ async fn subscribe_returns_400_when_invalid_body() {
             .await
             .expect("Failed to execute request");
 
-        assert_eq!(
-            response.status(),
-            StatusCode::NOT_FOUND,
-            "payload was {}",
-            error_message
-        );
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+        let bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body = std::str::from_utf8(bytes.as_ref());
+
+        assert_eq!(body, Ok(error_message));
     }
 }

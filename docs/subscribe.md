@@ -5,6 +5,10 @@
   - [失敗する結合テスト](#失敗する結合テスト)
   - [必要最小限の実装](#必要最小限の実装)
   - [リクエストボディに対する検証を行うテストを追加](#リクエストボディに対する検証を行うテストを追加)
+  - [リクエストボディを検証する処理を追加](#リクエストボディを検証する処理を追加)
+    - [リクエストボディの取り扱い](#リクエストボディの取り扱い)
+    - [注意点](#注意点)
+    - [axum 側の実装](#axum-側の実装)
 
 ## 考慮すべき内容
 
@@ -21,9 +25,7 @@
 
 ```txt
 ### Emailを登録してニュールを購読する
-POST http://127.0.0.1:8080/subscription
-
-POST http://127.0.0.1:8080/subscription
+POST http://127.0.0.1:8080/subscriptions
 Content-Type: application/x-www-form-urlencoded
 
 name=shimopino
@@ -131,6 +133,10 @@ async fn subscribe_returns_400_when_invalid_body() {
     for (invalid_body, error_message) in test_cases {
         let request = Request::builder()
             .method(http::Method::POST)
+            .header(
+                http::header::CONTENT_TYPE,
+                mime::APPLICATION_WWW_FORM_URLENCODED.as_ref(),
+            )
             .uri("/subscriptions")
             .body(Body::from(invalid_body))
             .unwrap();
@@ -156,3 +162,162 @@ async fn subscribe_returns_400_when_invalid_body() {
 配列を使用することで複数のテストを実行するためのデータを用意している
 
 `ready` と `call` のメソッドを利用することでループの中で `clone` を利用する必要がない状態にしておき、テスト実行時のパフォーマンスを向上させている
+
+## リクエストボディを検証する処理を追加
+
+`application/x-www-url-encoded` 形式の HTTP リクエストを取り扱う上で、 `axum::Form` を利用することが可能である
+
+- [axum::Form](https://docs.rs/axum/latest/axum/struct.Form.html)
+
+この構造体を利用することで `application/x-www-url-encoded` 形式でエンコーディングされているリクエストボディをデシリアライズすることが可能であり、 `serde::Deserialize` を実装している全ての型をサポートしている
+
+こうしたリクエスト情報からデータを抽出する機能は `Extractor` と呼ばれており、各ハンドラーの引数に指定することでデータを抽出する
+
+ただし、Extractor は関数の引数に対して左から右へ順番に適用され、リクエストボディは非同期ストリームであり一度しか消費することができない
+
+そのためリクエストボディを消費する Extractor は関数の最後の引数に指定する必要がある
+
+- [Extractor の順番](https://docs.rs/axum/latest/axum/extract/index.html#the-order-of-extractors)
+
+まずはデシリアライズのできるように `serde` をインストールする
+
+```bash
+$ cargo add serde --features derive
+```
+
+### リクエストボディの取り扱い
+
+公式サイトに従って以下のようにリクエストボディとハンドラーを定義する
+
+```rs
+#[derive(Debug, Deserialize)]
+struct Subscribe {
+    name: String,
+    email: String,
+}
+
+async fn subscribe(Form(input): Form<Subscribe>) -> impl IntoResponse {
+    println!("{}, {}", input.name, input.email);
+    StatusCode::CREATED
+}
+```
+
+これでリクエストを送信すれば以下のようにログが出力されていることがわかる
+
+```bash
+listening on 127.0.0.1:8080
+shimopino, shimopino@example.com
+```
+
+### 注意点
+
+ただしテストを実行すると以下のように意図したステータスコードではないことがわかる
+
+```bash
+---- subscribe_returns_400_when_invalid_body stdout ----
+thread 'subscribe_returns_400_when_invalid_body' panicked at 'assertion failed: `(left == right)`
+  left: `422`,
+ right: `404`: payload was email is missing', tests/subscription.rs:61:9
+```
+
+これはより詳細にエラーメッセージを見ると以下のようになっている
+
+```bash
+HTTP/1.1 422 Unprocessable Entity
+content-type: text/plain; charset=utf-8
+content-length: 54
+date: Sun, 16 Apr 2023 07:20:41 GMT
+
+Failed to deserialize form body: missing field `email`
+```
+
+確かにテストケースで想定していた通りのエラーが出力されていることがわかるが、ライブラリが出したエラーをそのまま出力していることがわかる
+
+### axum 側の実装
+
+今回使用した `Form` 構造体は公式では下記ファイルで定義されている
+
+- [Form](https://github.com/tokio-rs/axum/blob/main/axum/src/form.rs)
+
+ルーティング設定を行なったときに定義したハンドラー関数は `FromRequest` トレイトを実装したものを指定する必要があり、このトレイトは以下のように定義されている
+
+```rs
+// axum-core/src/extract/mod.rs
+pub trait FromRequest<S, B, M = private::ViaRequest>: Sized {
+    /// リクエストの検証が Extractor で失敗して場合には Rejection を使ってレスポンスを返す
+    type Rejection: IntoResponse;
+
+    /// Perform the extraction.
+    async fn from_request(req: Request<B>, state: &S) -> Result<Self, Self::Rejection>;
+}
+```
+
+そして Form は以下のようにリクエストボディを処理している
+
+```rs
+#[async_trait]
+impl<T, S, B> FromRequest<S, B> for Form<T>
+where
+    T: DeserializeOwned,
+    B: HttpBody + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<BoxError>,
+    S: Send + Sync,
+{
+    type Rejection = FormRejection;
+
+    async fn from_request(req: Request<B>, _state: &S) -> Result<Self, Self::Rejection> {
+        // x-www-url-encodedなので受け付けることの可能なHTTPメソッドが限定されている
+        let is_get_or_head =
+            req.method() == http::Method::GET || req.method() == http::Method::HEAD;
+
+        match req.extract().await {
+            // 非同期ストレージとして Bytes 型としてリクエストを受け取り
+            Ok(RawForm(bytes)) => {
+                // serde_urlencoded で Bytes からデシリアライズを行なっている
+                let value =
+                    serde_urlencoded::from_bytes(&bytes).map_err(|err| -> FormRejection {
+                        if is_get_or_head {
+                            FailedToDeserializeForm::from_err(err).into()
+                        } else {
+                            FailedToDeserializeFormBody::from_err(err).into()
+                        }
+                    })?;
+                Ok(Form(value))
+            }
+            // もしもエラーが発生した場合にはRejectionを返す
+            Err(RawFormRejection::BytesRejection(r)) => Err(FormRejection::BytesRejection(r)),
+            Err(RawFormRejection::InvalidFormContentType(r)) => {
+                Err(FormRejection::InvalidFormContentType(r))
+            }
+        }
+    }
+}
+```
+
+今回はエラーメッセージのカスタマイズを後回しにして、テストケース側を修正することで対応する
+
+```rs
+let test_cases = vec![
+    (
+        "name=shimopino",
+        "Failed to deserialize form body: missing field `email`",
+    ),
+    (
+        "email=shimopino%40example.com",
+        "Failed to deserialize form body: missing field `name`",
+    ),
+    ("", "Failed to deserialize form body: missing field `name`"),
+];
+
+// ...
+
+assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+let bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
+// Bytes型に対して Deref トレイトの実装を呼び出すことで変換している
+// Deref<Target = [u8]> が実装されているため自動的に &[u8] に変換される
+let body = std::str::from_utf8(bytes.as_ref());
+
+assert_eq!(body, Ok(error_message));
+```
