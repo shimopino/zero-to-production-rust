@@ -15,7 +15,7 @@
     - [テストでのデータベース確認](#テストでのデータベース確認)
     - [PgConnection と PgPool](#pgconnection-と-pgpool)
     - [テストとデータベース](#テストとデータベース)
-  - [Github Actions でテストを実現する](#github-actionsでテストを実現する)
+  - [Github Actions でテストを実現する](#github-actions-でテストを実現する)
 
 ## 考慮すべき内容
 
@@ -496,14 +496,77 @@ features = [
 
 ```bash
 src/
-├── configuration.rs
-├── lib.rs
+├── configuration.rs        # 各種アプリケーション設定を行う
+├── lib.rs                  # ライブラリをpublishさせるのみ
 ├── main.rs
 ├── routes
 │   ├── health_check.rs
 │   ├── mod.rs
 │   └── subscriptions.rs
-└── startup.rs
+└── startup.rs              # サーバー起動に必要な関数をまとめる
+```
+
+Rust では `yml` ファイルなどで設定されたアプリケーション設定の値を読み込むための [config-rs](https://github.com/mehcode/config-rs) クレートを使用することができ、ファイルで設定している値と同じ構造の型を用意すればいい
+
+例えば `configuration.yml` で以下のように値を設定した場合
+
+```yml
+application_port: 8080
+database:
+  host: "127.0.0.1"
+  port: 5432
+  username: "postgres"
+  password: "password"
+  database_name: "newsletter"
+```
+
+Rust では以下のように型を定義する
+
+```rs
+#[derive(Deserialize)]
+pub struct Settings {
+    pub database: DatabaseSettings,
+    pub application_port: u16,
+}
+
+#[derive(Deserialize)]
+pub struct DatabaseSettings {
+    pub username: String,
+    pub password: String,
+    pub port: u16,
+    pub host: String,
+    pub database_name: String,
+}
+```
+
+そしてクレートを使用してパースすればファイルに設定された項目を読み込むことが可能となる
+
+```rs
+pub fn get_configuration() -> Result<Settings, config::ConfigError> {
+    let settings = config::Config::builder()
+        .add_source(config::File::new(
+            "configuration.yml",
+            config::FileFormat::Yaml,
+        ))
+        .build()?;
+
+    settings.try_deserialize::<Settings>()
+}
+```
+
+- [config-rs example](https://github.com/mehcode/config-rs/blob/master/examples/simple/main.rs)
+
+こうしておけば DB への接続文字列を生成するための関数を作成することも可能である
+
+```rs
+impl DatabaseSettings {
+    pub fn connection_string(&self) -> String {
+        format!(
+            "postgres://{}:{}@{}:{}/{}",
+            self.username, self.password, self.host, self.port, self.database_name
+        )
+    }
+}
 ```
 
 ### テストでのデータベース確認
@@ -519,6 +582,9 @@ src/
   - オフラインモードで利用可能な `sql-data.json` をワークスペースルートに設定する
 
 ### PgConnection と PgPool
+
+- [PgConnection](https://docs.rs/sqlx/latest/sqlx/struct.PgConnection.html)
+- [Pool](https://docs.rs/sqlx/latest/sqlx/struct.Pool.html)
 
 ### テストとデータベース
 
