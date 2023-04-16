@@ -3,6 +3,7 @@
 - [POST リクエストの作成](#post-リクエストの作成)
   - [考慮すべき内容](#考慮すべき内容)
   - [失敗する結合テスト](#失敗する結合テスト)
+  - [必要最小限の実装](#必要最小限の実装)
 
 ## 考慮すべき内容
 
@@ -88,3 +89,21 @@ thread 'subscribe_returns_200_for_valid_from_data' panicked at 'assertion failed
  right: `201`', tests/subscription.rs:29:5
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 ```
+
+## 必要最小限の実装
+
+テストを合格させる必要最小限の実装を行うために、新しく該当のエンドポイントを作成し、合致するステータスコードを返却するように修正する
+
+```rs
+async fn subscribe() -> impl IntoResponse {
+    StatusCode::CREATED
+}
+
+pub fn create_app() -> Router {
+    Router::new()
+        .route("/health_check", get(health_check))
+        .route("/subscriptions", post(subscribe))
+}
+```
+
+これでテストを実行すれば PASS することがわかる
