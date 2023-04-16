@@ -1,22 +1,61 @@
 use axum::{
     body::Body,
     http::{self, Request, StatusCode},
+    Router,
 };
-use sqlx::PgPool;
+use sqlx::{Connection, Executor, PgConnection, PgPool};
 use tower::{Service, ServiceExt};
-use zero2prod::configuration::get_configuration;
+use uuid::Uuid;
+use zero2prod::configuration::{get_configuration, DatabaseSettings};
 
-#[tokio::test]
-async fn subscribe_returns_200_for_valid_from_data() {
-    let configuration = get_configuration().expect("Failed to read configuration");
-    let connection_string = configuration.database.connection_string();
-    let connection = PgPool::connect(&connection_string)
+pub struct TestApp {
+    pub app: Router,
+    pub db_pool: PgPool,
+}
+
+pub async fn setup_app() -> TestApp {
+    let mut configuration = get_configuration().expect("Failed to read configuration.yml");
+    configuration.database.database_name = Uuid::new_v4().to_string();
+    let connection_pool = configure_database(&configuration.database).await;
+
+    let app = zero2prod::startup::create_app(connection_pool.clone());
+
+    TestApp {
+        app,
+        db_pool: connection_pool,
+    }
+}
+
+pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
+    // データベースを作成する
+    let mut connection = PgConnection::connect(&config.connection_string_without_db())
+        .await
+        .expect("Failed to connect to Postgres");
+
+    connection
+        .execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
+        .await
+        .expect("Failed to create database.");
+
+    // データベースに対してマイグレーションを実行する
+    let connection_pool = PgPool::connect(&config.connection_string())
         .await
         .expect("Failed to connect to Postgres.");
 
-    let app = zero2prod::startup::create_app(connection.clone());
+    sqlx::migrate!("./migrations")
+        .run(&connection_pool)
+        .await
+        .expect("Failed to migrate the database");
 
-    let response = app
+    connection_pool
+}
+
+#[tokio::test]
+async fn subscribe_returns_200_for_valid_from_data() {
+    let test_app = setup_app().await;
+
+    let response = test_app
+        .app
         .oneshot(
             Request::builder()
                 .method(http::Method::POST)
@@ -34,7 +73,7 @@ async fn subscribe_returns_200_for_valid_from_data() {
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let saved = sqlx::query!("SELECT * FROM subscriptions",)
-        .fetch_one(&connection)
+        .fetch_one(&test_app.db_pool)
         .await
         .expect("Failed to fetch saved subscription.");
 
@@ -56,13 +95,7 @@ async fn subscribe_returns_400_when_invalid_body() {
         ("", "Failed to deserialize form body: missing field `name`"),
     ];
 
-    let configuration = get_configuration().expect("Failed to read configuration");
-    let connection_string = configuration.database.connection_string();
-    let connection = PgPool::connect(&connection_string)
-        .await
-        .expect("Failed to connect to Postgres.");
-
-    let mut app = zero2prod::startup::create_app(connection);
+    let mut test_app = setup_app().await;
 
     for (invalid_body, error_message) in test_cases {
         let request = Request::builder()
@@ -75,7 +108,8 @@ async fn subscribe_returns_400_when_invalid_body() {
             .body(Body::from(invalid_body))
             .unwrap();
 
-        let response = app
+        let response = test_app
+            .app
             .ready()
             .await
             .unwrap()

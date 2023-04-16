@@ -1,15 +1,7 @@
-use axum::body::Body;
-use axum::http::Request;
-use axum::http::StatusCode;
 use axum::Router;
-use sqlx::Connection;
-use sqlx::Executor;
-use sqlx::PgConnection;
-use sqlx::PgPool;
-use tower::ServiceExt;
+use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
-use zero2prod::configuration::get_configuration;
-use zero2prod::configuration::DatabaseSettings;
+use zero2prod::configuration::{get_configuration, DatabaseSettings};
 
 pub struct TestApp {
     pub app: Router,
@@ -51,26 +43,4 @@ pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .expect("Failed to migrate the database");
 
     connection_pool
-}
-
-// #[cfg(feature = "integration_test")]
-#[tokio::test]
-async fn health_check_works() {
-    let test_app = setup_app().await;
-
-    let response = test_app
-        .app
-        .oneshot(
-            Request::builder()
-                .uri("/health_check")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .expect("Failed to execute request.");
-
-    assert_eq!(response.status(), StatusCode::OK);
-
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
-    assert_eq!(&body[..], b"hello world");
 }
