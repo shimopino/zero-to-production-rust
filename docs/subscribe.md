@@ -9,6 +9,8 @@
     - [リクエストボディの取り扱い](#リクエストボディの取り扱い)
     - [注意点](#注意点)
     - [axum 側の実装](#axum-側の実装)
+  - [データベースへの接続](#データベースへの接続)
+    - [sqlx を利用したアクセス](#sqlx-を利用したアクセス)
 
 ## 考慮すべき内容
 
@@ -320,4 +322,143 @@ let bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
 let body = std::str::from_utf8(bytes.as_ref());
 
 assert_eq!(body, Ok(error_message));
+```
+
+## データベースへの接続
+
+Rust にてデータベースを使用するライブラリを選択する際には、以下の観点が重要となる
+
+- コンパイル時の型安全性
+- クエリを利用する時のインターフェース
+- 非同期サポート
+
+本書では `sqlx` を採用しており、 `axum` にもサンプルはあるためこのライブラリを使用する
+
+- [sqlx](https://github.com/launchbadge/sqlx)
+
+結合テストでデータベースを使用する際には、検証のために ① 別のエンドポイントを使用して状態を確認するか、② データベースに直接アクセスして確認する方法が存在している
+
+将来のリファクタリングのためには実装の詳細を把握する必要がないように ① を選択する方が望ましいが、別の機能を作成することになるため一旦 ② の実装で進めていく
+
+今回はローカルで開発する際には Docker を利用して Postgres サーバーを使用するため、 `scripts/init_db.sh` を実行してコンテナを起動する
+
+```bash
+$ chmod +x scripts/init_db.sh
+
+# PostgreSQLサーバーを起動する
+$ ./scripts/init_db.sh
+
+# 実際にコンテナにアクセスしてデータベースを確認する
+$ docker container exec -it postgres bash
+> psql -h localhost -U $POSTGRES_USER -d $POSTGRES_DB -W
+> \dt -- テーブルの一覧を表示する
+```
+
+### sqlx を利用したアクセス
+
+まずは `sqlx` をインストールする
+
+```bash
+# sqlxをインストールする
+$ cargo install sqlx-cli --no-default-features --features rustls,postgres
+
+# バージョン情報を確認する
+$ sqlx --version
+sqlx-cli 0.6.3
+```
+
+sqlx では以下のようにデータベース作成のために接続 URL を指定する
+
+```bash
+sqlx database create --help
+sqlx-database-create
+Creates the database specified in your DATABASE_URL
+
+USAGE:
+    sqlx database create [OPTIONS] --database-url <DATABASE_URL>
+
+OPTIONS:
+        --connect-timeout <CONNECT_TIMEOUT>
+            The maximum time, in seconds, to try connecting to the database server before returning
+            an error [default: 10]
+
+    -D, --database-url <DATABASE_URL>
+            Location of the DB, by default will be read from the DATABASE_URL env var [env:
+            DATABASE_URL=]
+```
+
+あとは `sqlx` を使用してニュースの購読に必要なテーブルのマイグレーションファイルを作成するために下記コマンドを実行すれば `migrations` ディレクトリに空の SQL ファイルが作成されていることが確認できる
+
+```bash
+$ DATABASE_URL=postgres://postgres:password@127.0.0.1:5432/newsletter sqlx migrate add create_subscriptions_table
+
+Creating migrations/20230416091820_create_subscriptions_table.sql
+
+Congratulations on creating your first migration!
+...
+```
+
+以下の通りメールアドレスには一意性制約をもうけたテーブルを作成する
+
+```sql
+CREATE TABLE subscriptions(
+    id uuid NOT NULL,
+    PRIMARY KEY (id),
+    email TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    subscribed_at timestamptz NOT NULL
+)
+```
+
+最後にデータベース初期化用のスクリプトに対してマイグレーションを実行する下記コマンドを追加する
+
+```bash
+sqlx database create
+sqlx migrate run # このコマンドを追加
+```
+
+これでデータベースにアクセスすれば以下のようにテーブルが作成されていることが確認できる
+
+```bash
+# 実際にコンテナにアクセスしてデータベースを確認する
+$ docker container exec -it postgres bash
+> psql -h localhost -U $POSTGRES_USER -d $POSTGRES_DB -W
+newsletter=# \dt -- テーブルの一覧を表示する
+              List of relations
+ Schema |       Name       | Type  |  Owner
+--------+------------------+-------+----------
+ public | _sqlx_migrations | table | postgres
+ public | subscriptions    | table | postgres
+(2 rows)
+
+newsletter=# \d subscriptions
+                       Table "public.subscriptions"
+    Column     |           Type           | Collation | Nullable |
+ Default
+---------------+--------------------------+-----------+----------+
+---------
+ id            | uuid                     |           | not null |
+
+ email         | text                     |           | not null |
+
+ name          | text                     |           | not null |
+
+ subscribed_at | timestamp with time zone |           | not null |
+
+Indexes:
+    "subscriptions_pkey" PRIMARY KEY, btree (id)
+    "subscriptions_email_key" UNIQUE CONSTRAINT, btree (email)
+
+newsletter=# \d _sqlx_migrations
+                      Table "public._sqlx_migrations"
+     Column     |           Type           | Collation | Nullable | Default
+----------------+--------------------------+-----------+----------+---------
+ version        | bigint                   |           | not null |
+ description    | text                     |           | not null |
+ installed_on   | timestamp with time zone |           | not null | now()
+ success        | boolean                  |           | not null |
+ checksum       | bytea                    |           | not null |
+ execution_time | bigint                   |           | not null |
+Indexes:
+    "_sqlx_migrations_pkey" PRIMARY KEY, btree (version)
 ```
