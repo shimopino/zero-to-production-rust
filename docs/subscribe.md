@@ -14,6 +14,8 @@
     - [sqlx を利用して DB 接続する](#sqlx-を利用して-db-接続する)
     - [テストでのデータベース確認](#テストでのデータベース確認)
     - [PgConnection と PgPool](#pgconnection-と-pgpool)
+    - [テストとデータベース](#テストとデータベース)
+  - [Github Actions でテストを実現する](#github-actionsでテストを実現する)
 
 ## 考慮すべき内容
 
@@ -517,3 +519,7 @@ src/
   - オフラインモードで利用可能な `sql-data.json` をワークスペースルートに設定する
 
 ### PgConnection と PgPool
+
+### テストとデータベース
+
+## Github Actions でテストを実現する
