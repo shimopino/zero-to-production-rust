@@ -4,7 +4,8 @@ on:
   push:
     branches:
       - "main"
-      - "feature/*"
+      # PR作成時のみにCIを実行させるように修正
+      # - "feature/*"
   pull_request:
     types: [opened, synchronize, reopened]
     branches:
