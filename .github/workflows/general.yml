@@ -121,9 +121,9 @@ jobs:
           POSTGRES_DB: postgres
         ports:
           - 5432:5432
-    container:
-      image: xd009642/tarpaulin
-      options: --security-opt seccomp=unconfined
+    # container:
+    #   image: xd009642/tarpaulin
+    #   options: --security-opt seccomp=unconfined
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -143,6 +143,8 @@ jobs:
         run: SKIP_DOCKER=true ./scripts/init_db.sh
       - name: generate .env
         run: cp .env.example .env
+      - name: Install tarpaulin
+        run: cargo install cargo-tarpaulin
       - name: Generate code coverage
         run: |
           cargo tarpaulin --verbose --workspace --out Xml
