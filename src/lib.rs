@@ -5,7 +5,5 @@ async fn handler() -> &'static str {
 }
 
 pub fn create_app() -> Router {
-    let app = Router::new().route("/health_check", get(handler));
-
-    app
+    Router::new().route("/health_check", get(handler))
 }
