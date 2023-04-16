@@ -4,6 +4,7 @@
   - [考慮すべき内容](#考慮すべき内容)
   - [失敗する結合テスト](#失敗する結合テスト)
   - [必要最小限の実装](#必要最小限の実装)
+  - [リクエストボディに対する検証を行うテストを追加](#リクエストボディに対する検証を行うテストを追加)
 
 ## 考慮すべき内容
 
@@ -107,3 +108,51 @@ pub fn create_app() -> Router {
 ```
 
 これでテストを実行すれば PASS することがわかる
+
+## リクエストボディに対する検証を行うテストを追加
+
+今回はリクエストボディに対してニュースを購読するユーザーの名前とメールアドレスを指定する必要があるが、これらを必須の入力項目として取り扱う
+
+そのためそれぞれの入力項目が指定されていない場合に BAD REQUEST を返すことを前提とした失敗するテストを追加する
+
+```rs
+#[tokio::test]
+async fn subscribe_returns_400_when_invalid_body() {
+    // 複数のテストケースを用意する
+    let test_cases = vec![
+        ("name=shimopino", "email is missing"),
+        ("email=shimopino%40example.com", "name is missing"),
+        ("", "name and email are missing"),
+    ];
+
+    // 複数回りクエストを送信できるように可変状態で作成する
+    let mut app = create_app();
+
+    for (invalid_body, error_message) in test_cases {
+        let request = Request::builder()
+            .method(http::Method::POST)
+            .uri("/subscriptions")
+            .body(Body::from(invalid_body))
+            .unwrap();
+
+        let response = app
+            .ready()
+            .await
+            .unwrap()
+            .call(request)
+            .await
+            .expect("Failed to execute request");
+
+        assert_eq!(
+            response.status(),
+            StatusCode::NOT_FOUND,
+            "payload was {}",
+            error_message
+        );
+    }
+}
+```
+
+配列を使用することで複数のテストを実行するためのデータを用意している
+
+`ready` と `call` のメソッドを利用することでループの中で `clone` を利用する必要がない状態にしておき、テスト実行時のパフォーマンスを向上させている

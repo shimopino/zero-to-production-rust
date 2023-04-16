@@ -2,7 +2,7 @@ use axum::{
     body::Body,
     http::{self, Request, StatusCode},
 };
-use tower::ServiceExt;
+use tower::{Service, ServiceExt};
 use zero2prod::create_app;
 
 #[tokio::test]
@@ -27,4 +27,38 @@ async fn subscribe_returns_200_for_valid_from_data() {
         .expect("Failed to execute request");
 
     assert_eq!(response.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn subscribe_returns_400_when_invalid_body() {
+    let test_cases = vec![
+        ("name=shimopino", "email is missing"),
+        ("email=shimopino%40example.com", "name is missing"),
+        ("", "name and email are missing"),
+    ];
+
+    let mut app = create_app();
+
+    for (invalid_body, error_message) in test_cases {
+        let request = Request::builder()
+            .method(http::Method::POST)
+            .uri("/subscriptions")
+            .body(Body::from(invalid_body))
+            .unwrap();
+
+        let response = app
+            .ready()
+            .await
+            .unwrap()
+            .call(request)
+            .await
+            .expect("Failed to execute request");
+
+        assert_eq!(
+            response.status(),
+            StatusCode::NOT_FOUND,
+            "payload was {}",
+            error_message
+        );
+    }
 }
