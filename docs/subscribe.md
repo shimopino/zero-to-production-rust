@@ -11,6 +11,9 @@
     - [axum 側の実装](#axum-側の実装)
   - [データベースへの接続](#データベースへの接続)
     - [sqlx を利用したアクセス](#sqlx-を利用したアクセス)
+    - [sqlx を利用して DB 接続する](#sqlx-を利用して-db-接続する)
+    - [テストでのデータベース確認](#テストでのデータベース確認)
+    - [PgConnection と PgPool](#pgconnection-と-pgpool)
 
 ## 考慮すべき内容
 
@@ -462,3 +465,55 @@ newsletter=# \d _sqlx_migrations
 Indexes:
     "_sqlx_migrations_pkey" PRIMARY KEY, btree (version)
 ```
+
+### sqlx を利用して DB 接続する
+
+sqlx をインストールするが、指定する Feature Flag が多く複雑になるため、以下のように別途依存関係の設定を定義することができる
+
+```toml
+[dependencies.sqlx]
+version = "^0.6"
+default-features = false
+features = [
+    # tokioランタイムとTLSバックエンドを利用する
+    "runtime-tokio-rustls",
+    # sqlx::query!などのマクロを利用する
+    "macros",
+    # Postgres特有の機能を利用する
+    "postgres",
+    # SQLのUUIDマッピング機能を利用する
+    "uuid",
+    # SQL timestamptzをDateTime<T>にマッピングする機能を利用する
+    "chrono",
+    # sqlx-cliのマイグレーションなどの機能を利用する
+    "migrate"
+]
+```
+
+データベースに接続するには接続文字列を利用する必要があるが、現状のディレクトリ構成のままでは複雑になってしまうため、以下のようなディレクトリ構造を採用して設定ファイルを別個定義する
+
+```bash
+src/
+├── configuration.rs
+├── lib.rs
+├── main.rs
+├── routes
+│   ├── health_check.rs
+│   ├── mod.rs
+│   └── subscriptions.rs
+└── startup.rs
+```
+
+### テストでのデータベース確認
+
+結合テストで DB に対して直接クエリを実行することができるが、公式ページに記載されている通り環境変数などを設定する必要がある
+
+- [sqlx::query!](https://docs.rs/sqlx/latest/sqlx/macro.query.html#requirements)
+
+以下の点を気をつける必要がある
+
+- ビルド時に `DATABASE_URL` という環境変数が設定されている必要があり、クエリ文字列が指定されたデータベースサーバーに対して検証を行うために設定する
+  - `.env` ファイルに環境変数を設定する
+  - オフラインモードで利用可能な `sql-data.json` をワークスペースルートに設定する
+
+### PgConnection と PgPool

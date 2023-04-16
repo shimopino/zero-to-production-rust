@@ -2,12 +2,19 @@ use axum::{
     body::Body,
     http::{self, Request, StatusCode},
 };
+use sqlx::PgPool;
 use tower::{Service, ServiceExt};
-use zero2prod::create_app;
+use zero2prod::configuration::get_configuration;
 
 #[tokio::test]
 async fn subscribe_returns_200_for_valid_from_data() {
-    let app = create_app();
+    let configuration = get_configuration().expect("Failed to read configuration");
+    let connection_string = configuration.database.connection_string();
+    let connection = PgPool::connect(&connection_string)
+        .await
+        .expect("Failed to connect to Postgres.");
+
+    let app = zero2prod::startup::create_app(connection.clone());
 
     let response = app
         .oneshot(
@@ -18,15 +25,21 @@ async fn subscribe_returns_200_for_valid_from_data() {
                     http::header::CONTENT_TYPE,
                     mime::APPLICATION_WWW_FORM_URLENCODED.as_ref(),
                 )
-                .body(Body::from(
-                    "name=le%20guin&email=ursula_le_guin%40gmail.com",
-                ))
+                .body(Body::from("name=shimopino&email=shimopino%40example.com"))
                 .unwrap(),
         )
         .await
         .expect("Failed to execute request");
 
     assert_eq!(response.status(), StatusCode::CREATED);
+
+    let saved = sqlx::query!("SELECT * FROM subscriptions",)
+        .fetch_one(&connection)
+        .await
+        .expect("Failed to fetch saved subscription.");
+
+    assert_eq!(saved.email, "shimopino@example.com");
+    assert_eq!(saved.name, "shimopino");
 }
 
 #[tokio::test]
@@ -43,7 +56,13 @@ async fn subscribe_returns_400_when_invalid_body() {
         ("", "Failed to deserialize form body: missing field `name`"),
     ];
 
-    let mut app = create_app();
+    let configuration = get_configuration().expect("Failed to read configuration");
+    let connection_string = configuration.database.connection_string();
+    let connection = PgPool::connect(&connection_string)
+        .await
+        .expect("Failed to connect to Postgres.");
+
+    let mut app = zero2prod::startup::create_app(connection);
 
     for (invalid_body, error_message) in test_cases {
         let request = Request::builder()
