@@ -17,6 +17,7 @@
   "[ignore]": {
     "editor.defaultFormatter": "foxundermoon.shell-format"
   },
-  "rust-analyzer.linkedProjects": ["./Cargo.toml"]
+  "rust-analyzer.linkedProjects": ["./Cargo.toml"],
+  "rust-analyzer.check.command": "clippy"
   // rust-analyzerに関する設定
 }
