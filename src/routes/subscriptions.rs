@@ -24,7 +24,7 @@ impl TryFrom<Subscribe> for NewSubscriber {
 
 pub async fn subscribe(
     State(pool): State<PgPool>,
-    Form(input): Form<Subscribe>,
+    Form(form): Form<Subscribe>,
 ) -> impl IntoResponse {
     let new_subscriber = match input.try_into() {
         Ok(subscriber) => subscriber,
