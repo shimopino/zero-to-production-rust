@@ -3,12 +3,17 @@ use axum::http::Request;
 use axum::http::StatusCode;
 use tower::ServiceExt;
 
+mod common;
+
+use common::setup_app;
+
 // #[cfg(feature = "integration_test")]
 #[tokio::test]
 async fn health_check_works() {
-    let app = zero2prod::create_app();
+    let test_app = setup_app().await;
 
-    let response = app
+    let response = test_app
+        .app
         .oneshot(
             Request::builder()
                 .uri("/health_check")

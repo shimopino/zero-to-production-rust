@@ -18,3 +18,9 @@ target/
 *.pdb
 
 # End of https://www.toptal.com/developers/gitignore/api/rust
+
+# データベースのマウントを無視
+data
+
+# 環境変数を対象外
+.env

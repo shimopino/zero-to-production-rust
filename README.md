@@ -5,4 +5,5 @@
 本書のサンプルは `actix-web` ベースなので適宜書き換え、新たに学習した内容は `docs/*` 以下のディレクトリに配置していく。
 
 - [環境構築](docs/environment.md)
-- [Axum](docs/axum.md)
+- [axum Hello World](docs/hello-world.md)
+- [axum POST](docs/subscribe.md)
