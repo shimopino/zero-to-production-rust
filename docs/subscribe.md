@@ -16,6 +16,7 @@
     - [PgConnection と PgPool](#pgconnection-と-pgpool)
     - [テストとデータベース](#テストとデータベース)
   - [Github Actions でテストを実現する](#github-actions-でテストを実現する)
+    - [DB の準備](#db-の準備)
 
 ## 考慮すべき内容
 
@@ -619,6 +620,139 @@ sqlx では `Pool` という構造体が定義されており、 `Send + Sync + 
   - DB サーバーはこのクエリプランをキャッシュに置き、後で実行するときに参照することで上記のオーバーヘッドを減らすようにしている
   - データベース接続は通常 DB サーバー内で分離され、ステートメントを共有しないため、上記のメリットを受けるにはコネクションプールを利用してリソースを可能な限り再利用する
 
+生成したコネクションプールを各ハンドラーで利用するにはいくつかの方法がある
+
+- `State`
+  - より型安全なので利用できるならこれを使う
+  - 動的に制御したい場合は `Extension` を利用する
+- `Extension`
+  - 動的な設定が可能
+  - ミドルウェアの追加を忘れたりして存在しない拡張機能を抽出しようとすると実行時エラーとなる
+- クロージャー
+  - 他の方法よりも冗長的に記述する必要がある
+
+[sharing state with handlers](https://docs.rs/axum/latest/axum/index.html#sharing-state-with-handlers)
+
+今回は `State` 機能を利用する
+
+```rs
+pub fn create_app(db: PgPool) -> Router {
+    // Routerに対して State を保持することができる
+    Router::new()
+        .route("/subscriptions", post(subscribe))
+        // Routerがアクセスできるように設定する
+        .with_state(db)
+}
+
+pub async fn subscribe(
+    // StateというExtractor経由でアクセスする
+    // 間違った型を指定するとコンパイルエラーになってしまう
+    State(pool): State<PgPool>,
+    Form(input): Form<Subscribe>,
+) -> impl IntoResponse {
+    // ...
+}
+```
+
+- [State](https://docs.rs/axum/latest/axum/extract/struct.State.html)
+
+この接続を利用すれば以下のようにハンドラー内でクエリを実行することができる
+
+```rs
+pub async fn subscribe(
+    State(pool): State<PgPool>,
+    Form(input): Form<Subscribe>,
+) -> impl IntoResponse {
+    println!("{}, {}", input.name, input.email);
+
+    match sqlx::query!(
+        r#"
+        INSERT INTO subscriptions (id, email, name, subscribed_at)
+        VALUES ($1, $2, $3, $4)
+        "#,
+        Uuid::new_v4(),
+        input.email,
+        input.name,
+        Utc::now()
+    )
+    .execute(&pool)
+    .await
+    {
+        Ok(_) => StatusCode::CREATED,
+        Err(e) => {
+            println!("Failed to execute query: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
+}
+```
+
 ### テストとデータベース
 
+テスト時にはテストケースごとにデータベースを作成するために、UUID で ID を生成してマイグレーションを行う
+
+```rs
+let mut configuration = get_configuration().expect("Failed to read configuration.yml");
+    configuration.database.database_name = Uuid::new_v4().to_string();
+
+// 特定のデータベースに紐付けない接続を利用してデータベースを作成する
+// これらコネクション設定を利用して以下のようにマイグレーションを行う
+connection
+    .execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
+    .await
+    .expect("Failed to create database.");
+
+// 作成したDB先に対してマイグレーションを実行する
+sqlx::migrate!("./migrations")
+    .run(&connection_pool)
+    .await
+    .expect("Failed to migrate the database");
+```
+
 ## Github Actions でテストを実現する
+
+sqlx はコンパイル時にデータベースに接続し、データベース上にテーブルがあるかどうかまで検証することで、コンパイル時の型安全性を担保している
+
+そのため Github Actions 上でテストなどを実行するにあたり、データベースを作成してマイグレーションまで実行する必要がある
+
+### DB の準備
+
+サービスコンテナの機能を利用すれば、ジョブとサービスコンテナ間のネットワーク設定が行われ、ポートマッピングなどの設定を行う必要なくジョブコンテナからサービスコンテナにアクセスすることができる
+
+```yml
+name: PostgreSQL service example
+on: push
+
+jobs:
+  container-job:
+    runs-on: ubuntu-latest
+    container: node:10.18-jessie
+
+    # サービスコンテナ側の設定
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: Install dependencies
+        run: npm ci
+      # サービスコンテナにアクセスする
+      - name: Connect to PostgreSQL
+        run: node client.js
+        env:
+          POSTGRES_HOST: postgres
+          POSTGRES_PORT: 5432
+```
+
+- [サービスコンテナ](https://docs.github.com/ja/actions/using-containerized-services/creating-postgresql-service-containers)
+
+これであとはマイグレーションを実行と `.env` ファイルの用意を行えばよい
