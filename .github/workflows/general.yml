@@ -152,5 +152,6 @@ jobs:
         uses: codecov/codecov-action@v2
         with:
           # パブリックなリポジトリなのでトークン設定は不要
-          # token: ${{secrets.CODEDEV_TOKEN}}
+          # ただしRate Limitの課題にぶつかるためトークンを設定
+          token: ${{secrets.CODECOV_TOKEN}}
           fail_ci_if_error: true
