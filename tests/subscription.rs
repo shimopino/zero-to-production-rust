@@ -83,3 +83,37 @@ async fn subscribe_returns_400_when_invalid_body() {
         assert_eq!(body, Ok(error_message));
     }
 }
+
+#[tokio::test]
+async fn subscribe_returns_200_when_fields_are_present_but_empty() {
+    let mut test_app = setup_app().await;
+
+    let test_cases = vec![
+        ("name=&email=shimopino@example.com"),
+        ("name=shimopino&email="),
+        ("name=shimopino&email=not-an-email"),
+    ];
+
+    for (body) in test_cases {
+        let request = Request::builder()
+            .method(http::Method::POST)
+            .uri("/subscriptions")
+            .header(
+                http::header::CONTENT_TYPE,
+                mime::APPLICATION_WWW_FORM_URLENCODED.as_ref(),
+            )
+            .body(Body::from(body))
+            .unwrap();
+
+        let response = test_app
+            .app
+            .ready()
+            .await
+            .unwrap()
+            .call(request)
+            .await
+            .expect("Failed to execute request");
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+    }
+}
