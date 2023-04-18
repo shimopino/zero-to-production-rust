@@ -48,7 +48,9 @@ features = [
     # SQL timestamptzをDateTime<T>にマッピングする機能を利用する
     "chrono",
     # sqlx-cliのマイグレーションなどの機能を利用する
-    "migrate"
+    "migrate",
+    # DBサーバーに接続しない状態でもコンパイル可能にする機能
+    "offline",
 ]
 
 [dev-dependencies]
