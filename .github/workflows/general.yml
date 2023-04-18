@@ -55,8 +55,9 @@ jobs:
       - name: Migrate database
         run: SKIP_DOCKER=true ./scripts/init_db.sh
 
-      - name: generate .env
-        run: cp .env.example .env
+      - name: Check sqlx-data.json is up-to-date
+        run: |
+          cargo sqlx prepare --check -- --bin zero2prod
 
       - name: Run tests
         run: cargo test
