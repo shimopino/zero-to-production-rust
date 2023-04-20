@@ -18,7 +18,7 @@ pub async fn subscribe(
 ) -> impl IntoResponse {
     let new_subscriber = NewSubscriber {
         email: input.email,
-        name: SubscriberName::parse(input.name),
+        name: SubscriberName::parse(input.name).expect("Name validation failed."),
     };
 
     match insert_subscriber(&pool, &new_subscriber).await {
