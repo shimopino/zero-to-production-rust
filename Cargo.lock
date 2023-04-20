@@ -1911,5 +1911,6 @@ dependencies = [
  "sqlx",
  "tokio",
  "tower",
+ "unicode-segmentation",
  "uuid",
 ]
