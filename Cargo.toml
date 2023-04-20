@@ -40,6 +40,7 @@ features = [
 ]
 
 [dev-dependencies]
+claims = "0.7"
 hyper = "0.14.26"
 mime = "0.3.17"
 tower = "0.4.13"
