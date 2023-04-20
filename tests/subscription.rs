@@ -94,7 +94,7 @@ async fn subscribe_returns_200_when_fields_are_present_but_empty() {
         ("name=shimopino&email=not-an-email"),
     ];
 
-    for (body) in test_cases {
+    for body in test_cases {
         let request = Request::builder()
             .method(http::Method::POST)
             .uri("/subscriptions")
@@ -115,5 +115,10 @@ async fn subscribe_returns_200_when_fields_are_present_but_empty() {
             .expect("Failed to execute request");
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        let bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body = std::str::from_utf8(bytes.as_ref());
+
+        assert_eq!(body, Ok(""));
     }
 }
