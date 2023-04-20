@@ -16,9 +16,14 @@ pub async fn subscribe(
     State(pool): State<PgPool>,
     Form(input): Form<Subscribe>,
 ) -> impl IntoResponse {
+    let name = match SubscriberName::parse(input.name) {
+        Ok(name) => name,
+        Err(_) => return StatusCode::BAD_REQUEST,
+    };
+
     let new_subscriber = NewSubscriber {
         email: input.email,
-        name: SubscriberName::parse(input.name).expect("Name validation failed."),
+        name,
     };
 
     match insert_subscriber(&pool, &new_subscriber).await {
