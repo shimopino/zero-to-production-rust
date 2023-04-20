@@ -22,10 +22,10 @@ impl SubscriberName {
             Self(s)
         }
     }
+}
 
-    pub fn inner_ref(&self) -> &str {
-        // 呼び出し元は不変共有参照を取得する
-        // 読み出し専用であるため、内部のデータを変更することができない
+impl AsRef<str> for SubscriberName {
+    fn as_ref(&self) -> &str {
         &self.0
     }
 }
