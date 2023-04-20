@@ -12,17 +12,21 @@ pub struct Subscribe {
     email: String,
 }
 
-pub fn parse_subscriber(form: Subscribe) -> Result<NewSubscriber, String> {
-    let name = SubscriberName::parse(form.name)?;
-    let email = SubscriberEmail::parse(form.email)?;
-    Ok(NewSubscriber { email, name })
+impl TryFrom<Subscribe> for NewSubscriber {
+    type Error = String;
+
+    fn try_from(value: Subscribe) -> Result<Self, Self::Error> {
+        let name = SubscriberName::parse(value.name)?;
+        let email = SubscriberEmail::parse(value.email)?;
+        Ok(NewSubscriber { email, name })
+    }
 }
 
 pub async fn subscribe(
     State(pool): State<PgPool>,
     Form(input): Form<Subscribe>,
 ) -> impl IntoResponse {
-    let new_subscriber = match parse_subscriber(input) {
+    let new_subscriber = match input.try_into() {
         Ok(subscriber) => subscriber,
         Err(_) => return StatusCode::BAD_REQUEST,
     };
