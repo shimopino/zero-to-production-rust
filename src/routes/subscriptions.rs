@@ -2,8 +2,9 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse, Form};
 use chrono::Utc;
 use serde::Deserialize;
 use sqlx::PgPool;
-use unicode_segmentation::UnicodeSegmentation;
 use uuid::Uuid;
+
+use crate::domain::{NewSubscriber, SubscriberName};
 
 #[derive(Debug, Deserialize)]
 pub struct Subscribe {
@@ -15,23 +16,12 @@ pub async fn subscribe(
     State(pool): State<PgPool>,
     Form(input): Form<Subscribe>,
 ) -> impl IntoResponse {
-    if !is_valid_name(&input.name) {
-        return StatusCode::BAD_REQUEST;
-    }
+    let new_subscriber = NewSubscriber {
+        email: input.email,
+        name: SubscriberName::parse(input.name),
+    };
 
-    match sqlx::query!(
-        r#"
-        INSERT INTO subscriptions (id, email, name, subscribed_at)
-        VALUES ($1, $2, $3, $4)
-        "#,
-        Uuid::new_v4(),
-        input.email,
-        input.name,
-        Utc::now()
-    )
-    .execute(&pool)
-    .await
-    {
+    match insert_subscriber(&pool, &new_subscriber).await {
         Ok(_) => StatusCode::CREATED,
         Err(e) => {
             println!("Failed to execute query: {}", e);
@@ -40,13 +30,23 @@ pub async fn subscribe(
     }
 }
 
-pub fn is_valid_name(s: &str) -> bool {
-    let is_empty_or_whitespace = s.trim().is_empty();
+pub async fn insert_subscriber(
+    pool: &PgPool,
+    new_subscriber: &NewSubscriber,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        INSERT INTO subscriptions (id, email, name, subscribed_at)
+        VALUES ($1, $2, $3, $4)
+        "#,
+        Uuid::new_v4(),
+        new_subscriber.email,
+        new_subscriber.name.inner_ref(),
+        Utc::now()
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| e)?;
 
-    let is_too_long = s.graphemes(true).count() > 256;
-
-    let forbidden_characters = ['/', '(', ')', '"', '<', '>', '\\', '{', '}'];
-    let contains_forbidden_characters = s.chars().any(|g| forbidden_characters.contains(&g));
-
-    !(is_empty_or_whitespace || is_too_long || contains_forbidden_characters)
+    Ok(())
 }
