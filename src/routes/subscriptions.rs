@@ -55,8 +55,7 @@ pub async fn insert_subscriber(
         Utc::now()
     )
     .execute(pool)
-    .await
-    .map_err(|e| e)?;
+    .await?;
 
     Ok(())
 }
