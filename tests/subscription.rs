@@ -114,6 +114,6 @@ async fn subscribe_returns_200_when_fields_are_present_but_empty() {
             .await
             .expect("Failed to execute request");
 
-        assert_eq!(response.status(), StatusCode::CREATED);
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 }
