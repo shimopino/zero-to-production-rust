@@ -12,21 +12,20 @@ pub struct Subscribe {
     email: String,
 }
 
+pub fn parse_subscriber(form: Subscribe) -> Result<NewSubscriber, String> {
+    let name = SubscriberName::parse(form.name)?;
+    let email = SubscriberEmail::parse(form.email)?;
+    Ok(NewSubscriber { email, name })
+}
+
 pub async fn subscribe(
     State(pool): State<PgPool>,
     Form(input): Form<Subscribe>,
 ) -> impl IntoResponse {
-    let name = match SubscriberName::parse(input.name) {
-        Ok(name) => name,
+    let new_subscriber = match parse_subscriber(input) {
+        Ok(subscriber) => subscriber,
         Err(_) => return StatusCode::BAD_REQUEST,
     };
-
-    let email = match SubscriberEmail::parse(input.email) {
-        Ok(email) => email,
-        Err(_) => return StatusCode::BAD_REQUEST,
-    };
-
-    let new_subscriber = NewSubscriber { email, name };
 
     match insert_subscriber(&pool, &new_subscriber).await {
         Ok(_) => StatusCode::CREATED,
