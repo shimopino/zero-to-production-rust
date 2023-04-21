@@ -149,7 +149,7 @@ jobs:
         run: |
           cargo tarpaulin --verbose --workspace --out Xml
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@v2
+        uses: codecov/codecov-action@v3
         with:
           # パブリックなリポジトリなのでトークン設定は不要
           # ただしRate Limitの課題にぶつかるためトークンを設定
