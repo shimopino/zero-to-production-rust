@@ -26,7 +26,7 @@ pub async fn subscribe(
     State(pool): State<PgPool>,
     Form(form): Form<Subscribe>,
 ) -> impl IntoResponse {
-    let new_subscriber = match input.try_into() {
+    let new_subscriber = match form.try_into() {
         Ok(subscriber) => subscriber,
         Err(_) => return StatusCode::BAD_REQUEST,
     };
