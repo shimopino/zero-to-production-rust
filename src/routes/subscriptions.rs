@@ -4,7 +4,10 @@ use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
+use crate::{
+    domain::{NewSubscriber, SubscriberEmail, SubscriberName},
+    startup::DbState,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct Subscribe {
@@ -40,7 +43,7 @@ pub async fn subscribe(
         Err(_) => return StatusCode::BAD_REQUEST,
     };
 
-    match insert_subscriber(&pool, &new_subscriber).await {
+    match insert_subscriber(&db_state.db_pool, &new_subscriber).await {
         Ok(_) => StatusCode::CREATED,
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }

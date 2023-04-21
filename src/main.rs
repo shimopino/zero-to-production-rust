@@ -23,7 +23,9 @@ async fn main() {
     .parse()
     .expect("SockerAddr is not valid");
 
-    let app = create_app(connection);
+    let app_state = AppState::new(connection);
+
+    let app = create_app(app_state);
 
     tracing::info!("{}", addr);
 

@@ -32,7 +32,9 @@ pub async fn setup_app() -> TestApp {
     configuration.database.database_name = Uuid::new_v4().to_string();
     let connection_pool = configure_database(&configuration.database).await;
 
-    let app = zero2prod::startup::create_app(connection_pool.clone());
+    let app_state = AppState::new(connection_pool.clone());
+
+    let app = zero2prod::startup::create_app(app_state);
 
     TestApp {
         app,
