@@ -24,6 +24,8 @@ validator = "0.16"
 fake = "2.5"
 quickcheck = "1"
 quickcheck_macros = "1"
+env_logger = "0.10"
+log = "0.4"
 
 [dependencies.sqlx]
 version = "^0.6"

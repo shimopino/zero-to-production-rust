@@ -26,15 +26,33 @@ pub async fn subscribe(
     State(pool): State<PgPool>,
     Form(form): Form<Subscribe>,
 ) -> impl IntoResponse {
+    let request_id = Uuid::new_v4();
+    log::info!(
+        "request_id {} - Adding '{}' '{}' as a new subscriber",
+        request_id,
+        form.email,
+        form.name
+    );
+    log::info!(
+        "request_id {} - Saving new subscriber details in the database",
+        request_id
+    );
+
     let new_subscriber = match form.try_into() {
         Ok(subscriber) => subscriber,
         Err(_) => return StatusCode::BAD_REQUEST,
     };
 
     match insert_subscriber(&pool, &new_subscriber).await {
-        Ok(_) => StatusCode::CREATED,
+        Ok(_) => {
+            log::info!(
+                "request_id {} - New subscriber details have been saved",
+                request_id
+            );
+            StatusCode::CREATED
+        }
         Err(e) => {
-            println!("Failed to execute query: {}", e);
+            log::error!("request_id {} - Failed to execute query: {}", request_id, e);
             StatusCode::INTERNAL_SERVER_ERROR
         }
     }
