@@ -1,7 +1,16 @@
 use axum::Router;
+use once_cell::sync::Lazy;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
-use zero2prod::configuration::{get_configuration, DatabaseSettings};
+use zero2prod::{
+    configuration::{get_configuration, DatabaseSettings},
+    telemetry::{get_subscriber, init_subscriber},
+};
+
+static TRACING: Lazy<()> = Lazy::new(|| {
+    let subscriber = get_subscriber("test".into(), "debug".into());
+    init_subscriber(subscriber);
+});
 
 pub struct TestApp {
     pub app: Router,
@@ -9,6 +18,8 @@ pub struct TestApp {
 }
 
 pub async fn setup_app() -> TestApp {
+    Lazy::force(&TRACING);
+
     let mut configuration = get_configuration().expect("Failed to read configuration.yml");
     configuration.database.database_name = Uuid::new_v4().to_string();
     let connection_pool = configure_database(&configuration.database).await;

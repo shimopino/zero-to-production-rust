@@ -2265,6 +2265,7 @@ dependencies = [
  "hyper",
  "log",
  "mime",
+ "once_cell",
  "quickcheck",
  "quickcheck_macros",
  "serde",
