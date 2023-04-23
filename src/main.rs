@@ -1,6 +1,5 @@
 use secrecy::ExposeSecret;
 use sqlx::PgPool;
-use std::net::SocketAddr;
 use zero2prod::{
     configuration::get_configuration,
     startup::create_app,
@@ -18,7 +17,12 @@ async fn main() {
             .expect("Failed to connect to Postgres.");
 
     // 実行する
-    let addr = SocketAddr::from(([127, 0, 0, 1], configuration.application_port));
+    let addr = format!(
+        "{}:{}",
+        configuration.application.host, configuration.application.port
+    )
+    .parse()
+    .expect("SockerAddr is not valid");
 
     let app = create_app(connection);
 
