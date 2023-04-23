@@ -2,6 +2,7 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse, Form};
 use chrono::Utc;
 use serde::Deserialize;
 use sqlx::PgPool;
+use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
@@ -27,16 +28,13 @@ pub async fn subscribe(
     Form(form): Form<Subscribe>,
 ) -> impl IntoResponse {
     let request_id = Uuid::new_v4();
-    log::info!(
-        "request_id {} - Adding '{}' '{}' as a new subscriber",
-        request_id,
-        form.email,
-        form.name
+    let request_span = tracing::info_span!(
+        "Adding a new subscriber",
+        %request_id,
+        subscriber_email = %form.email,
+        subscriber_name = %form.name,
     );
-    log::info!(
-        "request_id {} - Saving new subscriber details in the database",
-        request_id
-    );
+    let _request_span_guard = request_span.enter();
 
     let new_subscriber = match form.try_into() {
         Ok(subscriber) => subscriber,
@@ -45,14 +43,14 @@ pub async fn subscribe(
 
     match insert_subscriber(&pool, &new_subscriber).await {
         Ok(_) => {
-            log::info!(
+            tracing::info!(
                 "request_id {} - New subscriber details have been saved",
                 request_id
             );
             StatusCode::CREATED
         }
         Err(e) => {
-            log::error!("request_id {} - Failed to execute query: {}", request_id, e);
+            tracing::error!("request_id {} - Failed to execute query: {}", request_id, e);
             StatusCode::INTERNAL_SERVER_ERROR
         }
     }
@@ -62,6 +60,8 @@ pub async fn insert_subscriber(
     pool: &PgPool,
     new_subscriber: &NewSubscriber,
 ) -> Result<(), sqlx::Error> {
+    let query_span = tracing::info_span!("Saving new subscriber details in the database");
+
     sqlx::query!(
         r#"
         INSERT INTO subscriptions (id, email, name, subscribed_at)
@@ -73,6 +73,7 @@ pub async fn insert_subscriber(
         Utc::now()
     )
     .execute(pool)
+    .instrument(query_span)
     .await?;
 
     Ok(())
