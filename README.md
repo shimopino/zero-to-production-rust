@@ -7,3 +7,4 @@
 - [環境構築](docs/environment.md)
 - [axum Hello World](docs/hello-world.md)
 - [axum POST](docs/subscribe.md)
+- [telemetry](docs/telemetry.md)

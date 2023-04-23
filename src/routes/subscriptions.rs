@@ -22,24 +22,34 @@ impl TryFrom<Subscribe> for NewSubscriber {
     }
 }
 
+#[tracing::instrument(
+    name = "Adding a new subscriber",
+    skip(form, pool),
+    fields(
+        request_id = %Uuid::new_v4(),
+        subscriber_email = %form.email,
+        subscriber_name = %form.name,
+    )
+)]
 pub async fn subscribe(
     State(pool): State<PgPool>,
-    Form(input): Form<Subscribe>,
+    Form(form): Form<Subscribe>,
 ) -> impl IntoResponse {
-    let new_subscriber = match input.try_into() {
+    let new_subscriber = match form.try_into() {
         Ok(subscriber) => subscriber,
         Err(_) => return StatusCode::BAD_REQUEST,
     };
 
     match insert_subscriber(&pool, &new_subscriber).await {
         Ok(_) => StatusCode::CREATED,
-        Err(e) => {
-            println!("Failed to execute query: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        }
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
 
+#[tracing::instrument(
+    name = "Saving new subscriber details in the database",
+    skip(new_subscriber, pool)
+)]
 pub async fn insert_subscriber(
     pool: &PgPool,
     new_subscriber: &NewSubscriber,
@@ -55,7 +65,11 @@ pub async fn insert_subscriber(
         Utc::now()
     )
     .execute(pool)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to execute query {:?}", e);
+        e
+    })?;
 
     Ok(())
 }
