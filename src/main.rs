@@ -13,9 +13,9 @@ async fn main() {
     init_subscriber(subscriber);
 
     let configuration = get_configuration().expect("Failed to read configuration");
-    let connection = PgPool::connect(configuration.database.connection_string().expose_secret())
-        .await
-        .expect("Failed to connect to Postgres.");
+    let connection =
+        PgPool::connect_lazy(configuration.database.connection_string().expose_secret())
+            .expect("Failed to connect to Postgres.");
 
     // 実行する
     let addr = SocketAddr::from(([127, 0, 0, 1], configuration.application_port));
