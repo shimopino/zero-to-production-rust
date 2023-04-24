@@ -26,6 +26,8 @@ async fn main() {
 
     let app = create_app(connection);
 
+    tracing::info!("{}", addr);
+
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
