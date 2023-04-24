@@ -1,11 +1,19 @@
-# ========== build ==========
-# ビルド時に必要な設定を行う
-FROM rust:1.69.0 as builder
+FROM lukemathwalker/cargo-chef:latest-rust-1.63.0 as chef
 WORKDIR /app
 RUN apt update && apt install lld clang -y
+
+FROM chef as planner
 COPY . .
-ENV SQLX_OFFLINE true
-RUN cargo build --release
+RUN cargo chef prepare --recipe-path recipe.json
+
+# ========== build ==========
+# # ビルド時に必要な設定を行う
+# FROM rust:1.69.0 as builder
+# WORKDIR /app
+# RUN apt update && apt install lld clang -y
+# COPY . .
+# ENV SQLX_OFFLINE true
+# RUN cargo build --release
 
 # # https://github.com/emk/rust-musl-builder
 # FROM ekidd/rust-musl-builder:stable as builder
@@ -13,6 +21,13 @@ RUN cargo build --release
 # COPY . .
 # ENV SQLX_OFFLINE true
 # RUN cargo build --release
+
+FROM chef as builder
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+COPY . .
+ENV SQLX_OFFLINE true
+RUN cargo build --release --bin zero2prod
 
 # ========== runtime ==========
 # 実行時に必要な設定を行う
