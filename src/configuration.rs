@@ -1,5 +1,6 @@
 use secrecy::{ExposeSecret, Secret};
 use serde::Deserialize;
+use serde_aux::field_attributes::deserialize_number_from_string;
 
 #[derive(Deserialize)]
 pub struct Settings {
@@ -9,6 +10,7 @@ pub struct Settings {
 
 #[derive(Deserialize)]
 pub struct ApplicationSettings {
+    #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub host: String,
 }
@@ -19,6 +21,7 @@ pub struct DatabaseSettings {
     // ログなどで出力しないようにオプトインベースの値として設定する
     // ログで出力したい場合は明示的にプロパティを指定する必要がある
     pub password: Secret<String>,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub host: String,
     pub database_name: String,
@@ -63,6 +66,13 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
         .add_source(config::File::from(
             configuration_directory.join(environment_filename),
         ))
+        .add_source(
+            // 環境変数から所定のフォーマットで読み取る
+            // APP_APPLICATION__PORT でポート番号を読み取る
+            config::Environment::with_prefix("APP")
+                .prefix_separator("_")
+                .separator("__"),
+        )
         .build()?;
 
     settings.try_deserialize::<Settings>()
