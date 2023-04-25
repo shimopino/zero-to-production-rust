@@ -5,4 +5,4 @@ docker-build:
 	docker image build --tag zero2prod --file Dockerfile .
 
 docker-run:
-	docker container run --rm --name zero2prod -p 8080:8080 zero2prod
+	docker container run -d --rm --name zero2prod -p 8080:8080 zero2prod
