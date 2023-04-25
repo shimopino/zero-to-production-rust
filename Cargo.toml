@@ -12,6 +12,10 @@ path = "src/lib.rs"
 path = "src/main.rs"
 name = "zero2prod"
 
+[profile.release]
+# debugなどのプロダクションで使用するバイナリに不要な情報を削除する
+strip = true
+
 [dependencies]
 axum = "0.6.15"
 serde = { version = "1.0.160", features = ["derive"] }
