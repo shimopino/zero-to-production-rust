@@ -5,11 +5,15 @@ use axum::{
 };
 use sqlx::PgPool;
 
-use crate::routes::{health_check, subscribe};
+use crate::{
+    email_client::EmailClient,
+    routes::{health_check, subscribe},
+};
 
 #[derive(Clone)]
 pub struct AppState {
     db_state: DbState,
+    email_client: EmailClient,
 }
 
 #[derive(Clone)]
@@ -18,9 +22,10 @@ pub struct DbState {
 }
 
 impl AppState {
-    pub fn new(db_pool: PgPool) -> Self {
+    pub fn new(db_pool: PgPool, email_client: EmailClient) -> Self {
         Self {
             db_state: DbState { db_pool },
+            email_client,
         }
     }
 }

@@ -4,6 +4,8 @@ use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
 use zero2prod::{
     configuration::{get_configuration, DatabaseSettings},
+    email_client::EmailClient,
+    startup::AppState,
     telemetry::{get_subscriber, init_subscriber},
 };
 
@@ -32,7 +34,13 @@ pub async fn setup_app() -> TestApp {
     configuration.database.database_name = Uuid::new_v4().to_string();
     let connection_pool = configure_database(&configuration.database).await;
 
-    let app_state = AppState::new(connection_pool.clone());
+    let sender_email = configuration
+        .email_client
+        .sender()
+        .expect("Invalid sender email address");
+    let email_client = EmailClient::new(configuration.email_client.base_url, sender_email);
+
+    let app_state = AppState::new(connection_pool.clone(), email_client);
 
     let app = zero2prod::startup::create_app(app_state);
 

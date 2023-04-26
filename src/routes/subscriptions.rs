@@ -27,7 +27,7 @@ impl TryFrom<Subscribe> for NewSubscriber {
 
 #[tracing::instrument(
     name = "Adding a new subscriber",
-    skip(form, pool),
+    skip(form, db_state),
     fields(
         request_id = %Uuid::new_v4(),
         subscriber_email = %form.email,
@@ -35,7 +35,7 @@ impl TryFrom<Subscribe> for NewSubscriber {
     )
 )]
 pub async fn subscribe(
-    State(pool): State<PgPool>,
+    State(db_state): State<DbState>,
     Form(form): Form<Subscribe>,
 ) -> impl IntoResponse {
     let new_subscriber = match form.try_into() {
