@@ -56,6 +56,7 @@ impl EmailClient {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "PascalCase")]
 struct SendEmailRequest {
     from: String,
     to: String,
@@ -71,12 +72,36 @@ mod tests {
     use fake::faker::{internet::en::SafeEmail, lorem::en::Sentence};
     use fake::{Fake, Faker};
     use secrecy::Secret;
+    use wiremock::matchers::{header, method, path};
+    use wiremock::Request;
     use wiremock::{matchers::any, Mock, MockServer, ResponseTemplate};
 
     use crate::domain::SubscriberEmail;
 
+    struct SendEmailBodyMatcher;
+
+    impl wiremock::Match for SendEmailBodyMatcher {
+        fn matches(&self, request: &Request) -> bool {
+            // parse
+            let result: Result<serde_json::Value, _> = serde_json::from_slice(&request.body);
+
+            if let Ok(body) = result {
+                dbg!(&body);
+
+                // 必要となるリクエストボディの検証を行う
+                body.get("From").is_some()
+                    && body.get("To").is_some()
+                    && body.get("Subject").is_some()
+                    && body.get("HtmlBody").is_some()
+                    && body.get("TextBody").is_some()
+            } else {
+                false
+            }
+        }
+    }
+
     #[tokio::test]
-    async fn send_email_fires_a_request_to_base_url() {
+    async fn send_email_sends_the_expected_request() {
         // Arrange
         // ランダムなポートを使用してバックグラウンドでサーバーを起動する
         // uriメソッドでURLを取得可能
@@ -87,6 +112,11 @@ mod tests {
 
         // Mockサーバーからのレスポンスのモックを設定する
         Mock::given(any())
+            .and(header("Content-Type", "application/json"))
+            .and(path("/email"))
+            .and(method("POST"))
+            // カスタムマッチャーを利用する
+            .and(SendEmailBodyMatcher)
             .respond_with(ResponseTemplate::new(200))
             // 条件と一致するリクエストを1つだけ受け取ることができる
             .expect(1)
