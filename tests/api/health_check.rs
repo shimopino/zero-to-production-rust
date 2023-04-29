@@ -3,9 +3,7 @@ use axum::http::Request;
 use axum::http::StatusCode;
 use tower::ServiceExt;
 
-mod common;
-
-use common::setup_app;
+use crate::helpers::setup_app;
 
 // #[cfg(feature = "integration_test")]
 #[tokio::test]

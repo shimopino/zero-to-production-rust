@@ -4,9 +4,7 @@ use axum::{
 };
 use tower::{Service, ServiceExt};
 
-mod common;
-
-use common::setup_app;
+use crate::helpers::setup_app;
 
 #[tokio::test]
 async fn subscribe_returns_200_for_valid_from_data() {
