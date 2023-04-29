@@ -1,3 +1,5 @@
+use std::time;
+
 use axum::Router;
 use once_cell::sync::Lazy;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
@@ -38,10 +40,12 @@ pub async fn setup_app() -> TestApp {
         .email_client
         .sender()
         .expect("Invalid sender email address");
+    let timeout = configuration.email_client.timeout();
     let email_client = EmailClient::new(
         configuration.email_client.base_url,
         sender_email,
         configuration.email_client.authorization_token,
+        timeout,
     );
 
     let app_state = AppState::new(connection_pool.clone(), email_client);
