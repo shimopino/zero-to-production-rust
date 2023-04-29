@@ -18,8 +18,13 @@ impl EmailClient {
         sender: SubscriberEmail,
         authorization_token: Secret<String>,
     ) -> Self {
+        let http_client = Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .unwrap();
+
         Self {
-            http_client: Client::new(),
+            http_client,
             base_url,
             sender,
             authorization_token,
@@ -174,6 +179,35 @@ mod tests {
         // このテストではHTTPステータスコードの検証のみを行う
         Mock::given(any())
             .respond_with(ResponseTemplate::new(500))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let subscriber_email = SubscriberEmail::parse(SafeEmail().fake()).unwrap();
+        let subject = Sentence(1..2).fake::<String>();
+        let content = Paragraph(1..10).fake::<String>();
+
+        // Act
+        let outcome = email_client
+            .send_email(subscriber_email, &subject, &content, &content)
+            .await;
+
+        // Assert
+        assert_err!(outcome);
+    }
+
+    #[tokio::test]
+    async fn send_email_times_out_if_the_server_takes_too_long() {
+        // Arrange
+        let mock_server = MockServer::start().await;
+        let fake_email = SafeEmail().fake();
+        let sender = SubscriberEmail::parse(fake_email).unwrap();
+        let email_client = EmailClient::new(mock_server.uri(), sender, Secret::new(Faker.fake()));
+
+        // このテストではHTTPステータスコードの検証のみを行う
+        Mock::given(any())
+            // タイムアウトを検証するために３分間送信を遅延させる
+            .respond_with(ResponseTemplate::new(200).set_delay(std::time::Duration::from_secs(180)))
             .expect(1)
             .mount(&mock_server)
             .await;
