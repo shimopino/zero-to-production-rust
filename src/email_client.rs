@@ -68,7 +68,7 @@ struct SendEmailRequest<'a> {
 #[cfg(test)]
 mod tests {
     use crate::email_client::EmailClient;
-    use claims::assert_ok;
+    use claims::{assert_err, assert_ok};
     use fake::faker::lorem::en::Paragraph;
     use fake::faker::{internet::en::SafeEmail, lorem::en::Sentence};
     use fake::{Fake, Faker};
@@ -102,6 +102,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn send_email_sends_the_expexted_request() {
+        // Arrange
+        let mock_server = MockServer::start().await;
+        let fake_email = SafeEmail().fake();
+        let sender = SubscriberEmail::parse(fake_email).unwrap();
+        let email_client = EmailClient::new(mock_server.uri(), sender, Secret::new(Faker.fake()));
+
+        Mock::given(any())
+            .and(header("Content-Type", "application/json"))
+            .and(path("/email"))
+            .and(method("POST"))
+            .and(SendEmailBodyMatcher)
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let subscriber_email = SubscriberEmail::parse(SafeEmail().fake()).unwrap();
+        let subject = Sentence(1..2).fake::<String>();
+        let content = Paragraph(1..10).fake::<String>();
+
+        // Act
+        let _ = email_client
+            .send_email(subscriber_email, &subject, &content, &content)
+            .await;
+
+        // Assert
+    }
+
+    #[tokio::test]
     async fn send_email_succeeds_if_the_server_returns_200() {
         // Arrange
         // ランダムなポートを使用してバックグラウンドでサーバーを起動する
@@ -129,5 +159,33 @@ mod tests {
 
         // Assert
         assert_ok!(outcome);
+    }
+
+    #[tokio::test]
+    async fn send_email_fails_if_the_server_returns_500() {
+        // Arrange
+        let mock_server = MockServer::start().await;
+        let fake_email = SafeEmail().fake();
+        let sender = SubscriberEmail::parse(fake_email).unwrap();
+        let email_client = EmailClient::new(mock_server.uri(), sender, Secret::new(Faker.fake()));
+
+        // このテストではHTTPステータスコードの検証のみを行う
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(500))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let subscriber_email = SubscriberEmail::parse(SafeEmail().fake()).unwrap();
+        let subject = Sentence(1..2).fake::<String>();
+        let content = Paragraph(1..10).fake::<String>();
+
+        // Act
+        let outcome = email_client
+            .send_email(subscriber_email, &subject, &content, &content)
+            .await;
+
+        // Assert
+        assert_err!(outcome);
     }
 }
