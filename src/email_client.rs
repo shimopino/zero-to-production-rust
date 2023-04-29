@@ -32,7 +32,7 @@ impl EmailClient {
         subject: &str,
         html_content: &str,
         text_content: &str,
-    ) -> Result<(), String> {
+    ) -> Result<(), reqwest::Error> {
         let url = format!("{}/email", self.base_url);
         let request_body = SendEmailRequest {
             from: self.sender.as_ref(),
@@ -49,8 +49,10 @@ impl EmailClient {
             )
             .json(&request_body)
             .send()
-            .await
-            .map_err(|_| "Sending Error".to_string())?;
+            .await?
+            // ステータスコードに応じたレスポンスに変換
+            .error_for_status()?;
+
         Ok(())
     }
 }
