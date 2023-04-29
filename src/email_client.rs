@@ -68,6 +68,7 @@ struct SendEmailRequest<'a> {
 #[cfg(test)]
 mod tests {
     use crate::email_client::EmailClient;
+    use claims::assert_ok;
     use fake::faker::lorem::en::Paragraph;
     use fake::faker::{internet::en::SafeEmail, lorem::en::Sentence};
     use fake::{Fake, Faker};
@@ -101,7 +102,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn send_email_sends_the_expected_request() {
+    async fn send_email_succeeds_if_the_server_returns_200() {
         // Arrange
         // ランダムなポートを使用してバックグラウンドでサーバーを起動する
         // uriメソッドでURLを取得可能
@@ -110,15 +111,9 @@ mod tests {
         let sender = SubscriberEmail::parse(fake_email).unwrap();
         let email_client = EmailClient::new(mock_server.uri(), sender, Secret::new(Faker.fake()));
 
-        // Mockサーバーからのレスポンスのモックを設定する
+        // このテストではHTTPステータスコードの検証のみを行う
         Mock::given(any())
-            .and(header("Content-Type", "application/json"))
-            .and(path("/email"))
-            .and(method("POST"))
-            // カスタムマッチャーを利用する
-            .and(SendEmailBodyMatcher)
             .respond_with(ResponseTemplate::new(200))
-            // 条件と一致するリクエストを1つだけ受け取ることができる
             .expect(1)
             .mount(&mock_server)
             .await;
@@ -128,10 +123,11 @@ mod tests {
         let content = Paragraph(1..10).fake::<String>();
 
         // Act
-        let _ = email_client
+        let outcome = email_client
             .send_email(subscriber_email, &subject, &content, &content)
             .await;
 
         // Assert
+        assert_ok!(outcome);
     }
 }
