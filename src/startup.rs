@@ -39,6 +39,12 @@ impl FromRef<AppState> for DbState {
     }
 }
 
+impl FromRef<AppState> for EmailClient {
+    fn from_ref(app_state: &AppState) -> EmailClient {
+        app_state.email_client.clone()
+    }
+}
+
 pub fn create_app(state: AppState) -> Router {
     Router::new()
         .route("/health_check", get(health_check))

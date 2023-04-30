@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     domain::{NewSubscriber, SubscriberEmail, SubscriberName},
+    email_client::EmailClient,
     startup::DbState,
 };
 
@@ -27,7 +28,7 @@ impl TryFrom<Subscribe> for NewSubscriber {
 
 #[tracing::instrument(
     name = "Adding a new subscriber",
-    skip(form, db_state),
+    skip(form, db_state, email_client),
     fields(
         request_id = %Uuid::new_v4(),
         subscriber_email = %form.email,
@@ -36,6 +37,7 @@ impl TryFrom<Subscribe> for NewSubscriber {
 )]
 pub async fn subscribe(
     State(db_state): State<DbState>,
+    State(email_client): State<EmailClient>,
     Form(form): Form<Subscribe>,
 ) -> impl IntoResponse {
     let new_subscriber = match form.try_into() {
@@ -43,10 +45,27 @@ pub async fn subscribe(
         Err(_) => return StatusCode::BAD_REQUEST,
     };
 
-    match insert_subscriber(&db_state.db_pool, &new_subscriber).await {
-        Ok(_) => StatusCode::CREATED,
-        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    if insert_subscriber(&db_state.db_pool, &new_subscriber)
+        .await
+        .is_err()
+    {
+        return StatusCode::INTERNAL_SERVER_ERROR;
     }
+
+    if email_client
+        .send_email(
+            new_subscriber.email,
+            "Welcome!",
+            "Welcome to our newsletter",
+            "Welcome to our newsletter",
+        )
+        .await
+        .is_err()
+    {
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    }
+
+    StatusCode::CREATED
 }
 
 #[tracing::instrument(
