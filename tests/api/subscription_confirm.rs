@@ -16,7 +16,7 @@ async fn confrmations_without_token_are_rejected_with_a_400() {
         .app
         .oneshot(
             Request::builder()
-                .method(http::Method::POST)
+                .method(http::Method::GET)
                 .uri("/subscriptions/confirm")
                 .body(Body::empty())
                 .unwrap(),
