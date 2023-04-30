@@ -4,8 +4,7 @@ use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
 use zero2prod::{
     configuration::{get_configuration, DatabaseSettings},
-    email_client::EmailClient,
-    startup::AppState,
+    startup::{build, get_connection_pool},
     telemetry::{get_subscriber, init_subscriber},
 };
 
@@ -30,29 +29,20 @@ pub struct TestApp {
 pub async fn setup_app() -> TestApp {
     Lazy::force(&TRACING);
 
-    let mut configuration = get_configuration().expect("Failed to read configuration.yml");
-    configuration.database.database_name = Uuid::new_v4().to_string();
-    let connection_pool = configure_database(&configuration.database).await;
+    let configuration = {
+        let mut c = get_configuration().expect("Failed to read configuration.");
+        c.database.database_name = Uuid::new_v4().to_string();
+        c.application.port = 0;
+        c
+    };
 
-    let sender_email = configuration
-        .email_client
-        .sender()
-        .expect("Invalid sender email address");
-    let timeout = configuration.email_client.timeout();
-    let email_client = EmailClient::new(
-        configuration.email_client.base_url,
-        sender_email,
-        configuration.email_client.authorization_token,
-        timeout,
-    );
+    configure_database(&configuration.database).await;
 
-    let app_state = AppState::new(connection_pool.clone(), email_client);
-
-    let app = zero2prod::startup::create_app(app_state);
+    let (app, _) = build(configuration.clone());
 
     TestApp {
         app,
-        db_pool: connection_pool,
+        db_pool: get_connection_pool(&configuration.database),
     }
 }
 

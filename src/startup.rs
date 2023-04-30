@@ -8,7 +8,7 @@ use axum::{
 use sqlx::{postgres::PgPoolOptions, PgPool};
 
 use crate::{
-    configuration::Settings,
+    configuration::{DatabaseSettings, Settings},
     email_client::EmailClient,
     routes::{health_check, subscribe},
 };
@@ -47,9 +47,7 @@ pub fn create_app(state: AppState) -> Router {
 }
 
 pub fn build(configuration: Settings) -> (Router, SocketAddr) {
-    let connection_pool = PgPoolOptions::new()
-        .acquire_timeout(std::time::Duration::from_secs(2))
-        .connect_lazy_with(configuration.database.with_db());
+    let connection_pool = get_connection_pool(&configuration.database);
 
     let sender_email = configuration
         .email_client
@@ -74,4 +72,10 @@ pub fn build(configuration: Settings) -> (Router, SocketAddr) {
     .expect("SockerAddr is not valid");
 
     (create_app(app_state), addr)
+}
+
+pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {
+    PgPoolOptions::new()
+        .acquire_timeout(std::time::Duration::from_secs(2))
+        .connect_lazy_with(configuration.with_db())
 }
