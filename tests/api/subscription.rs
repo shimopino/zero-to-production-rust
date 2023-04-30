@@ -21,14 +21,33 @@ async fn subscribe_returns_200_for_valid_from_data() {
         .await;
 
     assert_eq!(status, StatusCode::CREATED);
+}
 
-    let saved = sqlx::query!("SELECT * FROM subscriptions",)
+#[tokio::test]
+async fn subscribe_persists_the_new_subscriber() {
+    let mut test_app = setup_app().await;
+
+    // Emailのモック用サーバーの設定
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&test_app.email_server)
+        .await;
+
+    let (status, _) = test_app
+        .post_subscription("name=shimopino&email=shimopino%40example.com".to_string())
+        .await;
+
+    assert_eq!(status, StatusCode::CREATED);
+
+    let saved = sqlx::query!("SELECT email, name, status FROM subscriptions",)
         .fetch_one(&test_app.db_pool)
         .await
         .expect("Failed to fetch saved subscription.");
 
     assert_eq!(saved.email, "shimopino@example.com");
     assert_eq!(saved.name, "shimopino");
+    assert_eq!(saved.status, "pending_confirmation");
 }
 
 #[tokio::test]
