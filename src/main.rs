@@ -1,6 +1,6 @@
 use zero2prod::{
     configuration::get_configuration,
-    startup::build,
+    startup::Application,
     telemetry::{get_subscriber, init_subscriber},
 };
 
@@ -10,11 +10,8 @@ async fn main() {
     init_subscriber(subscriber);
 
     let configuration = get_configuration().expect("Failed to read configuration");
-    let (app, addr) = build(configuration);
+    let application = Application::build(configuration);
 
-    tracing::info!("{}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap()
+    tracing::debug!("Listening on port: {}", application.addr().port());
+    application.run_until_stopped().await.unwrap();
 }

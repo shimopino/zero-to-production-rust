@@ -46,32 +46,56 @@ pub fn create_app(state: AppState) -> Router {
         .with_state(state)
 }
 
-pub fn build(configuration: Settings) -> (Router, SocketAddr) {
-    let connection_pool = get_connection_pool(&configuration.database);
+pub struct Application {
+    addr: SocketAddr,
+    app: Router,
+}
 
-    let sender_email = configuration
-        .email_client
-        .sender()
-        .expect("Invalid sender email address.");
-    let timeout = configuration.email_client.timeout();
-    let email_client = EmailClient::new(
-        configuration.email_client.base_url,
-        sender_email,
-        configuration.email_client.authorization_token,
-        timeout,
-    );
+impl Application {
+    pub fn build(configuration: Settings) -> Self {
+        let connection_pool = get_connection_pool(&configuration.database);
 
-    let app_state = AppState::new(connection_pool, email_client);
+        let sender_email = configuration
+            .email_client
+            .sender()
+            .expect("Invalid sender email address.");
+        let timeout = configuration.email_client.timeout();
+        let email_client = EmailClient::new(
+            configuration.email_client.base_url,
+            sender_email,
+            configuration.email_client.authorization_token,
+            timeout,
+        );
 
-    // 実行する
-    let addr = format!(
-        "{}:{}",
-        configuration.application.host, configuration.application.port
-    )
-    .parse()
-    .expect("SockerAddr is not valid");
+        let app_state = AppState::new(connection_pool, email_client);
 
-    (create_app(app_state), addr)
+        // 実行する
+        let addr = format!(
+            "{}:{}",
+            configuration.application.host, configuration.application.port
+        )
+        .parse()
+        .expect("SockerAddr is not valid");
+
+        Self {
+            app: create_app(app_state),
+            addr,
+        }
+    }
+
+    pub fn addr(&self) -> SocketAddr {
+        self.addr
+    }
+
+    pub fn app(&self) -> Router {
+        self.app.clone()
+    }
+
+    pub async fn run_until_stopped(self) -> Result<(), hyper::Error> {
+        axum::Server::bind(&self.addr)
+            .serve(self.app.into_make_service())
+            .await
+    }
 }
 
 pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {

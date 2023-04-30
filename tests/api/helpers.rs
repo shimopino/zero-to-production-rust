@@ -4,7 +4,7 @@ use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
 use zero2prod::{
     configuration::{get_configuration, DatabaseSettings},
-    startup::{build, get_connection_pool},
+    startup::{get_connection_pool, Application},
     telemetry::{get_subscriber, init_subscriber},
 };
 
@@ -38,10 +38,10 @@ pub async fn setup_app() -> TestApp {
 
     configure_database(&configuration.database).await;
 
-    let (app, _) = build(configuration.clone());
+    let application = Application::build(configuration.clone());
 
     TestApp {
-        app,
+        app: application.app(),
         db_pool: get_connection_pool(&configuration.database),
     }
 }
