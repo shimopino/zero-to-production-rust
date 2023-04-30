@@ -1,5 +1,9 @@
 use crate::helpers::setup_app;
 use axum::http::StatusCode;
+use wiremock::{
+    matchers::{method, path},
+    Mock, ResponseTemplate,
+};
 
 #[tokio::test]
 async fn subscribe_returns_200_for_valid_from_data() {
@@ -59,4 +63,25 @@ async fn subscribe_returns_200_when_fields_are_present_but_empty() {
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(body, "");
     }
+}
+
+#[tokio::test]
+async fn subscribe_sends_a_confirmation_email_for_valid_data() {
+    // Arrange
+    let mut test_app = setup_app().await;
+    let body = "name=shimopino&email=shimopino%40example.com";
+
+    // Email用のモックサーバー
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&test_app.email_server)
+        .await;
+
+    // Act
+    test_app.post_subscription(body.into()).await;
+
+    // Assert
+    // ドロップ時にMockでの検証も実行される
 }
