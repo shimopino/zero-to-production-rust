@@ -1,6 +1,11 @@
-use axum::Router;
+use axum::{
+    body::Body,
+    http::{self, Request},
+    Router,
+};
 use once_cell::sync::Lazy;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
+use tower::{Service, ServiceExt};
 use uuid::Uuid;
 use zero2prod::{
     configuration::{get_configuration, DatabaseSettings},
@@ -24,6 +29,35 @@ static TRACING: Lazy<()> = Lazy::new(|| {
 pub struct TestApp {
     pub app: Router,
     pub db_pool: PgPool,
+}
+
+impl TestApp {
+    pub async fn post_subscription(&mut self, body: String) -> (axum::http::StatusCode, String) {
+        let request = Request::builder()
+            .method(http::Method::POST)
+            .uri("/subscriptions")
+            .header(
+                http::header::CONTENT_TYPE,
+                mime::APPLICATION_WWW_FORM_URLENCODED.as_ref(),
+            )
+            .body(Body::from(body))
+            .unwrap();
+
+        let response = self
+            .app
+            .ready()
+            .await
+            .unwrap()
+            .call(request)
+            .await
+            .expect("Failed to execute request");
+
+        let status = response.status();
+        let bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body = std::str::from_utf8(&bytes).unwrap();
+
+        (status, String::from(body))
+    }
 }
 
 pub async fn setup_app() -> TestApp {

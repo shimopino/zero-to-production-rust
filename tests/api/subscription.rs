@@ -1,32 +1,14 @@
-use axum::{
-    body::Body,
-    http::{self, Request, StatusCode},
-};
-use tower::{Service, ServiceExt};
-
 use crate::helpers::setup_app;
+use axum::http::StatusCode;
 
 #[tokio::test]
 async fn subscribe_returns_200_for_valid_from_data() {
-    let test_app = setup_app().await;
+    let mut test_app = setup_app().await;
+    let (status, _) = test_app
+        .post_subscription("name=shimopino&email=shimopino%40example.com".to_string())
+        .await;
 
-    let response = test_app
-        .app
-        .oneshot(
-            Request::builder()
-                .method(http::Method::POST)
-                .uri("/subscriptions")
-                .header(
-                    http::header::CONTENT_TYPE,
-                    mime::APPLICATION_WWW_FORM_URLENCODED.as_ref(),
-                )
-                .body(Body::from("name=shimopino&email=shimopino%40example.com"))
-                .unwrap(),
-        )
-        .await
-        .expect("Failed to execute request");
-
-    assert_eq!(response.status(), StatusCode::CREATED);
+    assert_eq!(status, StatusCode::CREATED);
 
     let saved = sqlx::query!("SELECT * FROM subscriptions",)
         .fetch_one(&test_app.db_pool)
@@ -54,31 +36,10 @@ async fn subscribe_returns_400_when_invalid_body() {
     let mut test_app = setup_app().await;
 
     for (invalid_body, error_message) in test_cases {
-        let request = Request::builder()
-            .method(http::Method::POST)
-            .uri("/subscriptions")
-            .header(
-                http::header::CONTENT_TYPE,
-                mime::APPLICATION_WWW_FORM_URLENCODED.as_ref(),
-            )
-            .body(Body::from(invalid_body))
-            .unwrap();
+        let (status, body) = test_app.post_subscription(invalid_body.into()).await;
 
-        let response = test_app
-            .app
-            .ready()
-            .await
-            .unwrap()
-            .call(request)
-            .await
-            .expect("Failed to execute request");
-
-        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
-
-        let bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
-        let body = std::str::from_utf8(bytes.as_ref());
-
-        assert_eq!(body, Ok(error_message));
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(body, error_message);
     }
 }
 
@@ -92,31 +53,10 @@ async fn subscribe_returns_200_when_fields_are_present_but_empty() {
         ("name=shimopino&email=not-an-email"),
     ];
 
-    for body in test_cases {
-        let request = Request::builder()
-            .method(http::Method::POST)
-            .uri("/subscriptions")
-            .header(
-                http::header::CONTENT_TYPE,
-                mime::APPLICATION_WWW_FORM_URLENCODED.as_ref(),
-            )
-            .body(Body::from(body))
-            .unwrap();
+    for empty_body in test_cases {
+        let (status, body) = test_app.post_subscription(empty_body.into()).await;
 
-        let response = test_app
-            .app
-            .ready()
-            .await
-            .unwrap()
-            .call(request)
-            .await
-            .expect("Failed to execute request");
-
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-
-        let bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
-        let body = std::str::from_utf8(bytes.as_ref());
-
-        assert_eq!(body, Ok(""));
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body, "");
     }
 }
