@@ -1,5 +1,5 @@
 fn main() {
-    let result = early_return();
+    let _result = early_return();
 }
 
 fn early_return() -> Result<i32, Box<dyn std::error::Error>> {
