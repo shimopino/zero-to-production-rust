@@ -5,6 +5,7 @@
     - [Result 型とは](#result-型とは)
     - [Err 型で自作型を返却する](#err-型で自作型を返却する)
     - [Error トレイトを実装する](#error-トレイトを実装する)
+    - [複数のエラー型の組み合わせ](#複数のエラー型の組み合わせ)
   - [thiserror クレート](#thiserror-クレート)
   - [anyhow クレート](#anyhow-クレート)
   - [axum との組み合わせ](#axum-との組み合わせ)
@@ -240,6 +241,75 @@ impl From<DivideByZero> for String {
     }
 }
 ```
+
+### 複数のエラー型の組み合わせ
+
+アプリケーション全体でエラー型を作成する時には、サードパーティのクレートで定義されているエラー型なども `enum` で一部のエラーとして表現する場合もある。
+
+その場合には `From` トレイトなどを使用してアプリケーション全体の型に変換することもできる。
+
+```rs
+// 例えば以下で定義しているErrorが、sqlx::Error だったり reqwest::Error だったりする
+#[derive(Debug)]
+struct CustomErrorType1;
+
+#[derive(Debug)]
+struct CustomErrorType2;
+
+#[derive(Debug)]
+enum ApplicationError {
+    Type1(CustomErrorType1),
+    Type2(CustomErrorType2),
+}
+
+impl std::error::Error for ApplicationError {}
+
+impl Display for ApplicationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ApplicationError::Type1(_) => write!(f, "Error type 1"),
+            ApplicationError::Type2(_) => write!(f, "Error type 2"),
+        }
+    }
+}
+```
+
+例えば関数の中では以下のように `CustomErrorType1` を返すようなものもあるかもしれない。
+
+```rs
+fn some_function_custom_error_1() -> Result<i32, CustomErrorType1> {
+    // ...
+}
+```
+
+この関数を以下のように利用してもそのままでは型変換できずにコンパイルエラーになってしまう。
+
+```rs
+fn main() -> Result<(), ApplicationError> {
+    // 以下の関数では CustomErrorType1 がエラーとして返却される
+    let result = some_function_custom_error_1()?;
+
+    // ...
+}
+```
+
+このような場合にはそれぞれの型に対して `From` トレイトを実装して型推論から暗黙的に型変換のための関数を呼び出すようにすればいい。
+
+```rs
+impl From<CustomErrorType1> for ApplicationError {
+    fn from(error: CustomErrorType1) -> Self {
+        ApplicationError::Type1(error)
+    }
+}
+
+impl From<CustomErrorType2> for ApplicationError {
+    fn from(error: CustomErrorType2) -> Self {
+        ApplicationError::Type2(error)
+    }
+}
+```
+
+こうすればコンパイルエラーが発生することなく、エラーの型を変換することができる。
 
 ## thiserror クレート
 
