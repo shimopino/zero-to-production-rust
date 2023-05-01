@@ -15,8 +15,9 @@ use crate::{
 
 #[derive(Clone)]
 pub struct AppState {
-    db_state: DbState,
-    email_client: EmailClient,
+    pub db_state: DbState,
+    pub email_client: EmailClient,
+    pub base_url: ApplicationBaseUrl,
 }
 
 #[derive(Clone)]
@@ -24,11 +25,15 @@ pub struct DbState {
     pub db_pool: PgPool,
 }
 
+#[derive(Clone)]
+pub struct ApplicationBaseUrl(pub String);
+
 impl AppState {
-    pub fn new(db_pool: PgPool, email_client: EmailClient) -> Self {
+    pub fn new(db_pool: PgPool, email_client: EmailClient, base_url: String) -> Self {
         Self {
             db_state: DbState { db_pool },
             email_client,
+            base_url: ApplicationBaseUrl(base_url),
         }
     }
 }
@@ -74,7 +79,11 @@ impl Application {
             timeout,
         );
 
-        let app_state = AppState::new(connection_pool, email_client);
+        let app_state = AppState::new(
+            connection_pool,
+            email_client,
+            configuration.application.base_url,
+        );
 
         // 実行する
         let addr = format!(

@@ -64,13 +64,15 @@ async fn the_link_returned_by_subscribe_returns_a_200_if_called() {
     let confirmation_link = Url::parse(raw_confirmation_link).unwrap();
     assert_eq!(confirmation_link.host_str().unwrap(), "127.0.0.1");
 
+    let query = "subscription_token=mytoken";
+
     // Act
     let response = test_app
         .app
         .oneshot(
             Request::builder()
                 .method(http::Method::GET)
-                .uri("/subscriptions/confirm")
+                .uri(format!("/subscriptions/confirm?{}", query))
                 .body(Body::empty())
                 .unwrap(),
         )

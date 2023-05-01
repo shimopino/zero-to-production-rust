@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::{
     domain::{NewSubscriber, SubscriberEmail, SubscriberName},
     email_client::EmailClient,
-    startup::DbState,
+    startup::AppState,
 };
 
 #[derive(Debug, Deserialize)]
@@ -28,7 +28,7 @@ impl TryFrom<Subscribe> for NewSubscriber {
 
 #[tracing::instrument(
     name = "Adding a new subscriber",
-    skip(form, db_state, email_client),
+    skip(form, app_state),
     fields(
         request_id = %Uuid::new_v4(),
         subscriber_email = %form.email,
@@ -36,8 +36,7 @@ impl TryFrom<Subscribe> for NewSubscriber {
     )
 )]
 pub async fn subscribe(
-    State(db_state): State<DbState>,
-    State(email_client): State<EmailClient>,
+    State(app_state): State<AppState>,
     Form(form): Form<Subscribe>,
 ) -> impl IntoResponse {
     let new_subscriber = match form.try_into() {
@@ -45,16 +44,20 @@ pub async fn subscribe(
         Err(_) => return StatusCode::BAD_REQUEST,
     };
 
-    if insert_subscriber(&db_state.db_pool, &new_subscriber)
+    if insert_subscriber(&app_state.db_state.db_pool, &new_subscriber)
         .await
         .is_err()
     {
         return StatusCode::INTERNAL_SERVER_ERROR;
     }
 
-    if send_confirmation_email(&email_client, new_subscriber)
-        .await
-        .is_err()
+    if send_confirmation_email(
+        &app_state.email_client,
+        new_subscriber,
+        &app_state.base_url.0,
+    )
+    .await
+    .is_err()
     {
         return StatusCode::INTERNAL_SERVER_ERROR;
     }
@@ -92,13 +95,15 @@ pub async fn insert_subscriber(
 
 #[tracing::instrument(
     name = "Send a confirmation email to new subscriber",
-    skip(email_client, new_subscriber)
+    skip(email_client, new_subscriber, base_url)
 )]
 pub async fn send_confirmation_email(
     email_client: &EmailClient,
     new_subscriber: NewSubscriber,
+    base_url: &str,
 ) -> Result<(), reqwest::Error> {
-    let confirmation_link = "https://there-is-no-such-domain.com/subscriptions/confirm";
+    let confirmation_link = format!("{}/subscriptions/confirm", base_url);
+
     let html_body = format!(
         "Welcome to our newsletter!<br />\
         Click <a href=\"{}\">here</a> to confirm your subscription.",
