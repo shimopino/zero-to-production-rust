@@ -1,37 +1,42 @@
 fn main() {
     let result = early_return();
-    assert_eq!(result, Err("Divide By 0".to_string()));
 }
 
-fn early_return() -> Result<(), String> {
+fn early_return() -> Result<i32, Box<dyn std::error::Error>> {
     let value = divide(10, 0)?;
-    assert_eq!(value, 2);
+    let result = multiply(value)?;
 
-    Ok(())
+    Ok(result)
 }
 
 #[derive(Debug)]
-struct DivideByZero;
+enum CustomError {
+    DivideByZero,
+    NegativeNumber,
+}
 
-impl std::error::Error for DivideByZero {}
+impl std::error::Error for CustomError {}
 
-impl std::fmt::Display for DivideByZero {
+impl std::fmt::Display for CustomError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[DividedByZero] Divided by 0")
+        match *self {
+            CustomError::DivideByZero => write!(f, "Divided by 0"),
+            CustomError::NegativeNumber => write!(f, "Negative numbers"),
+        }
     }
 }
 
-impl From<DivideByZero> for String {
-    fn from(value: DivideByZero) -> Self {
-        println!("Display: {}, Debug: {:?}", value, value);
-
-        "Divide By 0".to_string()
+fn multiply(number: i32) -> Result<i32, CustomError> {
+    if number < 0 {
+        Err(CustomError::NegativeNumber)
+    } else {
+        Ok(number * 10)
     }
 }
 
-fn divide(numerator: i32, denominator: i32) -> Result<i32, DivideByZero> {
+fn divide(numerator: i32, denominator: i32) -> Result<i32, CustomError> {
     if denominator == 0 {
-        Err(DivideByZero)
+        Err(CustomError::DivideByZero)
     } else {
         Ok(numerator / denominator)
     }
