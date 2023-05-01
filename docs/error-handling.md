@@ -196,6 +196,49 @@ fn early_return() -> Result<(), String> {
 
 ### Error トレイトを実装する
 
+Result 型の `E` で指定されている型には文字列や自作した型を指定することもできるが、標準ライブラリが提供している [`Error`](https://doc.rust-lang.org/std/error/trait.Error.html) トレイトを実装したものを使用するのが一般的な慣習である。
+
+このトレイトは以下のように定義されており、 `Debug` トレイトや `Display` トレイトが境界として定義されているため実装が必要となる。
+
+```rs
+pub trait Error: Debug + Display {
+    // Provided methods
+    fn source(&self) -> Option<&(dyn Error + 'static)> { ... }
+    fn description(&self) -> &str { ... }
+    fn cause(&self) -> Option<&dyn Error> { ... }
+    fn provide<'a>(&'a self, demand: &mut Demand<'a>) { ... }
+}
+```
+
+この `Error` トレイトを利用することで `println!("{}", e)` や `println!("{:?}", e)` などの出力を利用することができ、利用するユーザーにとって使いやすいものとなる。
+
+```rs
+#[derive(Debug)]
+struct DivideByZero;
+
+impl std::error::Error for DivideByZero {}
+
+impl std::fmt::Display for DivideByZero {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Divided by 0")
+    }
+}
+```
+
+これで以下のように `From` トレイトの実装を変更して実際に標準出力にエラーを表示してみると、実装した `Display` トレイトの内容が反映されていることがわかる。
+
+```rs
+impl From<DivideByZero> for String {
+    fn from(value: DivideByZero) -> Self {
+        // これは以下のように出力される
+        // Display: [DividedByZero] Divided by 0, Debug: DivideByZero
+        println!("Display: {}, Debug: {:?}", value, value);
+
+        "Divide By 0".to_string()
+    }
+}
+```
+
 ## thiserror クレート
 
 https://docs.rs/thiserror/latest/thiserror/

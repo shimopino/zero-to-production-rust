@@ -10,11 +10,21 @@ fn early_return() -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Debug)]
 struct DivideByZero;
 
+impl std::error::Error for DivideByZero {}
+
+impl std::fmt::Display for DivideByZero {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[DividedByZero] Divided by 0")
+    }
+}
+
 impl From<DivideByZero> for String {
-    fn from(_value: DivideByZero) -> Self {
-        println!("convert DivideByZero to 'Divide by 0' String");
+    fn from(value: DivideByZero) -> Self {
+        println!("Display: {}, Debug: {:?}", value, value);
+
         "Divide By 0".to_string()
     }
 }
