@@ -1,7 +1,6 @@
-use sqlx::postgres::PgPoolOptions;
 use zero2prod::{
     configuration::get_configuration,
-    startup::create_app,
+    startup::Application,
     telemetry::{get_subscriber, init_subscriber},
 };
 
@@ -11,24 +10,8 @@ async fn main() {
     init_subscriber(subscriber);
 
     let configuration = get_configuration().expect("Failed to read configuration");
-    let connection = PgPoolOptions::new()
-        .acquire_timeout(std::time::Duration::from_secs(2))
-        .connect_lazy_with(configuration.database.with_db());
+    let application = Application::build(configuration);
 
-    // 実行する
-    let addr = format!(
-        "{}:{}",
-        configuration.application.host, configuration.application.port
-    )
-    .parse()
-    .expect("SockerAddr is not valid");
-
-    let app = create_app(connection);
-
-    tracing::info!("{}", addr);
-
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    tracing::debug!("Listening on port: {}", application.addr().port());
+    application.run_until_stopped().await.unwrap();
 }
