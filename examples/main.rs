@@ -1,30 +1,27 @@
 fn main() {
-    let success = divide(10, 2);
-    assert_eq!(success, Ok(5));
-
-    let failure = divide(10, 0);
-    assert_eq!(failure, Err("Divide by 0".to_string()));
-
-    early_return();
+    let result = early_return();
+    assert_eq!(result, Err("Divide By 0".to_string()));
 }
 
 fn early_return() -> Result<(), String> {
-    let value = match divide(10, 5) {
-        // 成功時には中身を取り出して変数に代入する
-        Ok(value) => value,
-        // 失敗時にはこの時点で、結果を関数から返却する
-        Err(e) => return Err(e),
-    };
-
-    //
-    println!("値は {} であり中身が取り出されている", value);
+    let value = divide(10, 0)?;
+    assert_eq!(value, 2);
 
     Ok(())
 }
 
-fn divide(numerator: i32, denominator: i32) -> Result<i32, String> {
+struct DivideByZero;
+
+impl From<DivideByZero> for String {
+    fn from(_value: DivideByZero) -> Self {
+        println!("convert DivideByZero to 'Divide by 0' String");
+        "Divide By 0".to_string()
+    }
+}
+
+fn divide(numerator: i32, denominator: i32) -> Result<i32, DivideByZero> {
     if denominator == 0 {
-        Err("Divide by 0".to_string())
+        Err(DivideByZero)
     } else {
         Ok(numerator / denominator)
     }

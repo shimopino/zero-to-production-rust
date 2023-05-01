@@ -2,12 +2,17 @@
 
 - [エラーハンドリング](#エラーハンドリング)
   - [Rust におけるエラーハンドリングの基本](#rust-におけるエラーハンドリングの基本)
+    - [Result 型とは](#result-型とは)
+    - [Err 型で自作型を返却する](#err-型で自作型を返却する)
+    - [Error トレイトを実装する](#error-トレイトを実装する)
   - [thiserror クレート](#thiserror-クレート)
   - [anyhow クレート](#anyhow-クレート)
   - [axum との組み合わせ](#axum-との組み合わせ)
   - [参考資料](#参考資料)
 
 ## Rust におけるエラーハンドリングの基本
+
+### Result 型とは
 
 Rust ではエラー処理を取り扱いたい時に利用できる `Result` 型が標準ライブラリから提供されている。
 
@@ -80,6 +85,95 @@ fn early_return() -> Result<(), String> {
     Ok(())
 }
 ```
+
+### Err 型で自作型を返却する
+
+作成した `divide` 関数の返却値の型は `Result<i32, String>` となっているが、全ての関数の返り値をこのように設計した場合、呼び出し元では型を見てもどのようなエラーが発生する可能性があるのか把握することができない。
+
+そのため以下のような失敗時の専用の型を用意して、明確に他の返り値を分離させることができる。
+
+```rs
+struct DivideByZero;
+```
+
+この型を使用すれば以下のように返り値の型を明確に表現することが可能となる
+
+```rs
+/// 呼び出し元は DivideByZero という型からどのようなエラーが発生する可能性があるのか把握できる
+fn divide(numerator: i32, denominator: i32) -> Result<i32, DivideByZero> {
+    if denominator == 0 {
+        Err(DivideByZero)
+    } else {
+        Ok(numerator / denominator)
+    }
+}
+```
+
+しかし元々この関数を呼び出していた `early_return` 関数は、返り値の型と関数が返す型が合わない状態になってしまうためコンパイルエラーが発生してしまう。
+
+```rs
+fn early_return() -> Result<(), String> {
+    // 型が合わない
+    let value = divide(10, 5)?;
+    assert_eq!(value, 2);
+
+    Ok(())
+}
+```
+
+実際にエラーを確認すると、以下のように型変換ができないためコンパイルエラーが発生していることがわかる。
+
+```bash
+error[E0277]: `?` couldn't convert the error to `String`
+ --> examples/main.rs:6:30
+  |
+5 | fn early_return() -> Result<(), String> {
+  |                      ------------------ expected `String` because of this
+6 |     let value = divide(10, 5)?;
+  |                              ^ the trait `From<DivideByZero>` is not implemented for `String`
+```
+
+ここでは `early_return` 関数の返り値の型を修正することでも対応できるが、ここでは 1 歩このコンパイルエラーを噛み砕いてみる。
+
+`From` トレイトを実装していないと表示されているが、シンタックスシュガーである `?` を使用すると、型推論をもとに暗黙的に [`From`](https://doc.rust-lang.org/std/convert/trait.From.html) トレイトの実装を呼び出している。
+
+このトレイトを活用して型変換を行うことで、さまざまな関数を組み合わせることが可能となる。
+
+今回は `DivideByZero` という自作した型を `String` 型に変換する実装を以下のように追加する。
+
+```rs
+struct DivideByZero;
+
+impl From<DivideByZero> for String {
+    // 値を consume する
+    fn from(_value: DivideByZero) -> Self {
+        println!("convert DivideByZero to 'Divide by 0' String");
+        "Divide By 0".to_string()
+    }
+}
+```
+
+こうすることで暗黙的に `from` メソッドが実行され、以下のように呼び出しもとに変換されたエラーが返却されていることがわかる。
+
+```rs
+fn main() {
+    let result = early_return();
+    // from によって変換された値が返ってきていることがわかる
+    assert_eq!(result, Err("Divide By 0".to_string()));
+}
+
+fn early_return() -> Result<(), String> {
+    // 暗黙的に DivideByZero -> String に変換するための from メソッドが呼ばれる
+    let value = divide(10, 0)?;
+    assert_eq!(value, 2);
+
+    Ok(())
+}
+```
+
+これで自作した型を Result 型に適用したり、異なる型同士で型変換を行う方法がわかった。
+
+### Error トレイトを実装する
 
 ## thiserror クレート
 
