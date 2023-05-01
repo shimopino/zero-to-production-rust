@@ -9,3 +9,4 @@
 - [axum POST](docs/subscribe.md)
 - [telemetry](docs/telemetry.md)
 - [container app](docs/container.md)
+- [error handling](docs/error-handling.md)
