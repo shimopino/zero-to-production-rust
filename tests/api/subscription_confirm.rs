@@ -52,9 +52,10 @@ async fn the_link_returned_by_subscribe_returns_a_200_if_called() {
 
     assert_eq!(confirmation_links.html.host_str().unwrap(), "127.0.0.1");
 
-    let query = "subscription_token=mytoken";
-
     // Act
+    let query_params = extract_query_params(&confirmation_links.html);
+    let token = query_params.get("subscription_token").unwrap();
+    let query = format!("subscription_token={}", token);
     let response = test_app
         .app
         .oneshot(
