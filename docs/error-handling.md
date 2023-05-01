@@ -313,7 +313,110 @@ impl From<CustomErrorType2> for ApplicationError {
 
 ## thiserror クレート
 
-https://docs.rs/thiserror/latest/thiserror/
+独自に型を定義したエラー型を作成する際には、各種トレイトなどのボイラープレートを記述する必要があり、アプリケーションの規模が拡大していくとエラー型の管理が大変になってしまう。
+
+`thiserror` クレートはこうしたボイラープレートの実装の手間を減らし、失敗した時に呼び出し元が選択した情報を正確に受け取れるようにすることを重視する時に利用できる。ライブラリなどの呼び出し元が不特定多数であり、可能な限り失敗した原因をユーザーに伝えたい場合などで使用する。
+
+公式ページに記載されている以下のサンプルコードを見てみる。
+
+```rs
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum DataStoreError {
+    #[error("data store disconnected")]
+    Disconnect(#[from] std::io::Error),
+    #[error("the data for key `{0}` is not available")]
+    Redaction(String),
+    #[error("invalid header (expected {expected:?}, found {found:?})")]
+    InvalidHeader {
+        expected: String,
+        found: String,
+    },
+    #[error("unknown data store error")]
+    Unknown,
+}
+```
+
+マクロでさまざまな定義を行なっているが [cargo-expand](https://github.com/dtolnay/cargo-expand) を利用してどのようなコードが展開されているのか確認する。
+
+展開した内容をみると以下のように今まで自前で定義していた `Error` トレイトの実装が自動的に追加されていることがわかる。
+
+```rs
+impl std::error::Error for DataStoreError {
+    fn source(&self) -> std::option::Option<&(dyn std::error::Error + 'static)> {
+        use thiserror::__private::AsDynError;
+        #[allow(deprecated)]
+        match self {
+            DataStoreError::Disconnect { 0: source, .. } => {
+                std::option::Option::Some(source.as_dyn_error())
+            }
+            DataStoreError::Redaction { .. } => std::option::Option::None,
+            DataStoreError::InvalidHeader { .. } => std::option::Option::None,
+            DataStoreError::Unknown { .. } => std::option::Option::None,
+        }
+    }
+}
+```
+
+`Error` トレイトでは `source()` メソッドは `#[source]` 属性を有するフィールドを、下位レベルのエラーとして指定する。
+
+今回 `#[source]` 属性を指定していないが、 `#[from]` 属性を付与すると `From` トレイトの実装だけではなく、暗黙的に `#[source]` と同じフィールドだと識別される。
+
+実際に以下のように指定した属性に対して `From` トレイトが実装されていることがわかる。
+
+```rs
+impl std::convert::From<std::io::Error> for DataStoreError {
+    #[allow(deprecated)]
+    fn from(source: std::io::Error) -> Self {
+        DataStoreError::Disconnect {
+            0: source,
+        }
+    }
+}
+```
+
+`#[error("...")]` では `Display` トレイトに対してどのような実装を行うのかを指定することができ、今回では以下のようにタプルで指定した値を表示したり、指定した属性の値を `Debug` で出力するような設定が組み込まれていることがわかる
+
+```rs
+impl std::fmt::Display for DataStoreError {
+    fn fmt(&self, __formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        #[allow(unused_imports)]
+        use thiserror::__private::{DisplayAsDisplay, PathAsDisplay};
+        #[allow(unused_variables, deprecated, clippy::used_underscore_binding)]
+        match self {
+            DataStoreError::Disconnect(_0) => {
+                __formatter.write_fmt(format_args!("data store disconnected"))
+            }
+            DataStoreError::Redaction(_0) => {
+                __formatter
+                    .write_fmt(
+                        format_args!(
+                            "the data for key `{0}` is not available", _0.as_display()
+                        ),
+                    )
+            }
+            DataStoreError::InvalidHeader { expected, found } => {
+                __formatter
+                    .write_fmt(
+                        format_args!(
+                            "invalid header (expected {0:?}, found {1:?})", expected,
+                            found
+                        ),
+                    )
+            }
+            DataStoreError::Unknown {} => {
+                __formatter.write_fmt(format_args!("unknown data store error"))
+            }
+        }
+    }
+}
+```
+
+このように `thiserror` クレートを利用することでエラー型を定義する時のボイラープレートを大幅に削減することができる。
+
+- https://docs.rs/thiserror/latest/thiserror/
+- https://github.com/dtolnay/thiserror
 
 ## anyhow クレート
 
