@@ -171,6 +171,27 @@ fn early_return() -> Result<(), String> {
 }
 ```
 
+なお `From` トレイトを実装することで自動的に `Into` トレイトも実装されるため、以下のように型変換を行うことも可能になっている。
+
+```rs
+let sample: String = DivideByZero.into();
+```
+
+これは以下のように `from` が呼ばれていることと同義である。
+
+```rs
+fn early_return() -> Result<(), String> {
+    let value = match divide(10, 0) {
+        Ok(value) => value,
+        // e: DivideByZero と型推論される
+        // そのため自動的に DivideByZero の from 実装が呼び出される
+        Err(e) => return Err(From::from(e)),
+    };
+
+    Ok(())
+}
+```
+
 これで自作した型を Result 型に適用したり、異なる型同士で型変換を行う方法がわかった。
 
 ### Error トレイトを実装する
