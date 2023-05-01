@@ -8,6 +8,7 @@
     - [複数のエラー型の組み合わせ](#複数のエラー型の組み合わせ)
   - [thiserror クレート](#thiserror-クレート)
   - [anyhow クレート](#anyhow-クレート)
+  - [sqlx での使い方](#sqlx-での使い方)
   - [axum との組み合わせ](#axum-との組み合わせ)
   - [参考資料](#参考資料)
 
@@ -415,12 +416,118 @@ impl std::fmt::Display for DataStoreError {
 
 このように `thiserror` クレートを利用することでエラー型を定義する時のボイラープレートを大幅に削減することができる。
 
+また `Display` の実装は他の型で既に実装されているものを `#[error(transparent)]` で利用することができる。
+
+通常は以下のように `#[error("...")]` を付与すると出力する文字列を調整することができる。
+
+```rs
+#[derive(Error, Debug)]
+pub enum DataStoreError {
+    #[error("data store disconnected")]
+    Disconnect(#[from] std::io::Error),
+}
+
+impl std::fmt::Display for DataStoreError {
+    fn fmt(&self, __formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            DataStoreError::Disconnect(_0) => {
+                __formatter.write_fmt(format_args!("data store disconnected"))
+            },
+            // ...
+        }
+    }
+}
+```
+
+`#[error(transparent)]` を利用することで `Disconnect` が値として受け取ったものに対してそのまま `fmt` を呼び出してエラーメッセージの表示の機能を委譲していることがわかる。
+
+```rs
+#[derive(Error, Debug)]
+pub enum DataStoreError {
+    #[error(transparent)]
+    Disconnect(#[from] std::io::Error),
+}
+
+impl std::fmt::Display for DataStoreError {
+    fn fmt(&self, __formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            DataStoreError::Disconnect(_0) => std::fmt::Display::fmt(_0, __formatter),
+            // ...
+        }
+    }
+}
+```
+
 - https://docs.rs/thiserror/latest/thiserror/
 - https://github.com/dtolnay/thiserror
 
 ## anyhow クレート
 
-https://docs.rs/anyhow/latest/anyhow/
+[`anyhow`](https://docs.rs/anyhow/latest/anyhow/) を利用することで `std::error::Error` トレイトを実装しているエラーを簡単に伝播させることができる。
+
+```rs
+fn run() -> anyhow::Result<()> {
+    let path = "./sample.txt";
+    // std::io::Result<String> が返却される
+    // type Result<T> = Result<T, std::error::Error>; で定義されている
+    // https://doc.rust-lang.org/std/io/type.Result.html
+    let data = std::fs::read_to_string(path)?;
+    println!("File contents: {}", data);
+    Ok(())
+}
+```
+
+この関数を以下のように呼び出す。
+
+```rs
+fn main() {
+    if let Err(e) = run() {
+        println!("Error: {:?}", e);
+    }
+}
+```
+
+その結果出力されるエラー情報は以下のように簡素なものとなっており、これだけではエラーに関する情報が不足していることがわかる。
+
+```rs
+Error: No such file or directory (os error 2)
+```
+
+`anyhow` は他にも `Context` が提供されており、エラーにコンテキスト情報 w 含めることでより豊かなエラーメッセージを表示することが可能となる。
+
+例えば以下のように `context` メソッドを利用すれば失敗した時のエラーメッセージを変化させることができる
+
+```rs
+fn run() -> anyhow::Result<()> {
+    let path = "./sample.txt";
+    let data = std::fs::read_to_string(path)
+        .context(format!("Failed to read file: {}", path))?;
+    println!("File contents: {}", data);
+    Ok(())
+}
+```
+
+この処理を実行してエラーを標準出力に出せば、以下のように指定したメッセージが表示されていることがわかる。
+
+```bash
+Error: Failed to read file: ./sample.txt
+```
+
+`context` メソッドは即時評価であるためコンテキストメッセージがすぐに作成されるが、 `with_context` メソッドを使用してクロージャを利用してメッセージを表示すると、遅延評価になるためメッセージ作成が高いコストの場合に利用できる。
+
+```rs
+
+fn run() -> anyhow::Result<()> {
+    let path = "./sample.txt";
+    let data = std::fs::read_to_string(path)
+        // 以下のクロージャは遅延評価される
+        .with_context(|| format!("Failed to read file: {}", path))?;
+    println!("File contents: {}", data);
+    Ok(())
+}
+```
+
+## sqlx での使い方
 
 ## axum との組み合わせ
 
