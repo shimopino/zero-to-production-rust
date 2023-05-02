@@ -516,7 +516,6 @@ Error: Failed to read file: ./sample.txt
 `context` メソッドは即時評価であるためコンテキストメッセージがすぐに作成されるが、 `with_context` メソッドを使用してクロージャを利用してメッセージを表示すると、遅延評価になるためメッセージ作成が高いコストの場合に利用できる。
 
 ```rs
-
 fn run() -> anyhow::Result<()> {
     let path = "./sample.txt";
     let data = std::fs::read_to_string(path)
@@ -525,6 +524,35 @@ fn run() -> anyhow::Result<()> {
     println!("File contents: {}", data);
     Ok(())
 }
+```
+
+標準ライブラリが提供している `Error` トレイトには `source` メソッドがありエラーがどこで発生したのかを辿ることができたが、 `anyhow` にも `Chain` という機能があり、以下のようにエラーを辿っていくことができる。
+
+```rs
+fn main() {
+    if let Err(e) = run() {
+        println!("Error: {}", e);
+        // エラーを辿って出力することができる
+        for cause in e.chain().skip(1) {
+            println!("Caused by {}", cause);
+        }
+    }
+}
+
+fn run() -> anyhow::Result<()> {
+    let path = "./sample.txt";
+    let data = std::fs::read_to_string(path)
+        .with_context(|| format!("Failed to read file: {}", path))?;
+    println!("File contents: {}", data);
+    Ok(())
+}
+```
+
+これは以下のように `with_context` で指定したメッセージに加えて、元々のエラーで出力されるメッセージも表示できていることがわかる。
+
+```bash
+Error: Failed to read file: ./sample.txt
+Caused by No such file or directory (os error 2)
 ```
 
 ## sqlx での使い方

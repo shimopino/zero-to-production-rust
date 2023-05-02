@@ -20,6 +20,9 @@ pub enum DataStoreError {
 fn main() {
     if let Err(e) = run() {
         println!("Error: {}", e);
+        for cause in e.chain().skip(1) {
+            println!("Caused by {}", cause);
+        }
     }
 }
 
