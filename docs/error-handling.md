@@ -8,8 +8,9 @@
     - [複数のエラー型の組み合わせ](#複数のエラー型の組み合わせ)
   - [thiserror クレート](#thiserror-クレート)
   - [anyhow クレート](#anyhow-クレート)
-  - [sqlx での使い方](#sqlx-での使い方)
-  - [axum との組み合わせ](#axum-との組み合わせ)
+  - [各種クレートでのエラーハンドリング](#各種クレートでのエラーハンドリング)
+    - [sqlx での使い方](#sqlx-での使い方)
+    - [axum との組み合わせ](#axum-との組み合わせ)
   - [参考資料](#参考資料)
 
 ## Rust におけるエラーハンドリングの基本
@@ -630,13 +631,96 @@ fn calc(a: i32, b: i32) -> anyhow::Result<i32> {
 }
 ```
 
-## sqlx での使い方
+## 各種クレートでのエラーハンドリング
 
-## axum との組み合わせ
+`thiserror` や `anyhow` を利用しているクレートを探したが、案外これらのクレートは使っておらずエラー型を自作して対応しているものが多かった。
+
+### sqlx での使い方
+
+sqlx では [sqlx-core/src/error.rs](https://github.com/launchbadge/sqlx/blob/main/sqlx-core/src/error.rs) で以下のように専用の Result 型や Error 型を定義している。
+
+```rs
+/// A specialized `Result` type for SQLx.
+pub type Result<T, E = Error> = ::std::result::Result<T, E>;
+
+// Convenience type alias for usage within SQLx.
+// Do not make this type public.
+pub type BoxDynError = Box<dyn StdError + 'static + Send + Sync>;
+
+/// Represents all the ways a method can fail within SQLx.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum Error {
+    /// Error occurred while parsing a connection string.
+    #[error("error with configuration: {0}")]
+    Configuration(#[source] BoxDynError),
+
+    /// Error returned from the database.
+    #[error("error returned from database: {0}")]
+    Database(#[source] Box<dyn DatabaseError>),
+
+    /// Error communicating with the database backend.
+    #[error("error communicating with database: {0}")]
+    Io(#[from] io::Error),
+
+    // ...
+}
+```
+
+こうしたエラーに関しては以下のように 1 つのエラー型しか取り扱わない場合には明示的にエラー型を `MigrateError` のように指定している。
+
+```rs
+fn validate_applied_migrations(
+    applied_migrations: &[AppliedMigration],
+    migrator: &Migrator,
+    ignore_missing: bool,
+) -> Result<(), MigrateError> {
+    if ignore_missing {
+        return Ok(());
+    }
+
+    let migrations: HashSet<_> = migrator.iter().map(|m| m.version).collect();
+
+    for applied_migration in applied_migrations {
+        if !migrations.contains(&applied_migration.version) {
+            return Err(MigrateError::VersionMissing(applied_migration.version));
+        }
+    }
+
+    Ok(())
+}
+```
+
+あるいは以下のように `anyhow::Result` を利用して複数の関数を組み合わせるときに発生するであろう、コンパイルエラーを防ぐようにしている。この関数では `bail` マクロを利用して `MigrateError` を返却したり、 `sqlx-core` ライブラリで定義している `Error` を返却する関数を利用している。
+
+```rs
+pub async fn revert(
+    migration_source: &str,
+    connect_opts: &ConnectOpts,
+    dry_run: bool,
+    ignore_missing: bool,
+) -> anyhow::Result<()> {
+    let migrator = Migrator::new(Path::new(migration_source)).await?;
+    let mut conn = crate::connect(&connect_opts).await?;
+
+    conn.ensure_migrations_table().await?;
+
+    let version = conn.dirty_version().await?;
+    if let Some(version) = version {
+        bail!(MigrateError::Dirty(version));
+    }
+
+    // ...
+}
+```
+
+基本的には `core` で自作している `Error` 型を他の feature でも利用するような形式となっており、それ以外の型も組み合わせる時には `anyhow` を利用している。
+
+### axum との組み合わせ
 
 https://docs.rs/axum/latest/axum/error_handling/index.html
 
 ## 参考資料
 
-- [std::result](https://doc.rust-lang.org/std/result/index.html)
-- [std::error](https://doc.rust-lang.org/std/error/index.html)
+- [Rust/Anyhow の Tips](https://zenn.dev/yukinarit/articles/b39cd42820f29e#bail!%E3%82%92%E4%BD%BF%E3%81%86)
+- [Rust エラー処理 2020](https://cha-shu00.hatenablog.com/entry/2020/12/08/060000#anyhow)
