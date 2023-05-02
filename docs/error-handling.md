@@ -593,6 +593,17 @@ fn calc(a: i32, b: i32) -> anyhow::Result<i32> {
 }
 ```
 
+条件文と返却するエラーを同時に指定することのできる [`ensure!`](https://docs.rs/anyhow/latest/anyhow/macro.ensure.html) マクロも用意されており、 `assert!` マクロにも似た機能を提供している。
+
+```rs
+fn calc(a: i32, b: i32) -> anyhow::Result<i32> {
+    ensure!(b == 0, ApplicationError::DivivedByZero);
+    ensure!(a < 0, ApplicationError::NegativeNumber);
+
+    Ok(a + b)
+}
+```
+
 ## sqlx での使い方
 
 ## axum との組み合わせ

@@ -1,4 +1,4 @@
-use anyhow::{bail, Context};
+use anyhow::{bail, ensure, Context};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -46,11 +46,8 @@ fn run() -> anyhow::Result<()> {
 }
 
 fn calc(a: i32, b: i32) -> anyhow::Result<i32> {
-    if b == 0 {
-        bail!(ApplicationError::DivivedByZero)
-    } else if a < 0 {
-        bail!(ApplicationError::NegativeNumber)
-    } else {
-        Ok(a + b)
-    }
+    ensure!(b == 0, ApplicationError::DivivedByZero);
+    ensure!(a < 0, ApplicationError::NegativeNumber);
+
+    Ok(a + b)
 }
