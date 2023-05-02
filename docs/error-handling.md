@@ -526,7 +526,7 @@ fn run() -> anyhow::Result<()> {
 }
 ```
 
-標準ライブラリが提供している `Error` トレイトには `source` メソッドがありエラーがどこで発生したのかを辿ることができたが、 `anyhow` にも `Chain` という機能があり、以下のようにエラーを辿っていくことができる。
+標準ライブラリが提供している `Error` トレイトには `source` メソッドがありエラーがどこで発生したのかを辿ることができたが、 `anyhow` にも [`Chain`](https://docs.rs/anyhow/latest/anyhow/struct.Chain.html) という機能があり、以下のようにエラーを辿っていくことができる。
 
 ```rs
 fn main() {
@@ -553,6 +553,44 @@ fn run() -> anyhow::Result<()> {
 ```bash
 Error: Failed to read file: ./sample.txt
 Caused by No such file or directory (os error 2)
+```
+
+`thiserror` で既に定義しているエラーが存在していた場合でも、以下のように `anyhow!` マクロを使用したり、 `anyhow::Error` に対して実装されている `into` メソッドを呼び出したりすることで、コンパイルエラーを発生させることなく関数を定義できる。
+
+```rs
+#[derive(Debug, thiserror::Error)]
+enum ApplicationError {
+    #[error("Divided By 0.")]
+    DivivedByZero,
+    #[error("Arguments are negative")]
+    NegativeNumber,
+}
+
+fn calc(a: i32, b: i32) -> anyhow::Result<i32> {
+    if b == 0 {
+        Err(anyhow!(ApplicationError::DivivedByZero))
+    } else if a < 0 {
+        Err(ApplicationError::NegativeNumber.into())
+    } else {
+        Ok(a + b)
+    }
+}
+```
+
+ただしこのように定義すると呼び出し元では、型からどのようなエラーが発生するのか把握することはできなくなるため、エラー種別に応じてエラーハンドリングを行いたい場合は明示的に型定義を行う必要がある。
+
+`anyhow!` マクロ以外にもより簡単に記述を行うことが可能な [`bail!`](https://docs.rs/anyhow/latest/anyhow/macro.bail.html) マクロも用意されている。このマクロは `return Err(anyhow!($args...))` を記述した時と同じ挙動となる。
+
+```rs
+fn calc(a: i32, b: i32) -> anyhow::Result<i32> {
+    if b == 0 {
+        bail!(ApplicationError::DivivedByZero)
+    } else if a < 0 {
+        bail!(ApplicationError::NegativeNumber)
+    } else {
+        Ok(a + b)
+    }
+}
 ```
 
 ## sqlx での使い方
