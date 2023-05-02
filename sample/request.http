@@ -9,4 +9,4 @@ name=shimopino
 &email=shimopino@example.com
 
 ### Emailのトークンを検証する
-GET http://127.0.0.1:8080/subscriptions/confirm
+GET http://127.0.0.1:8080/subscriptions/confirm?subscription_token=mytoken
