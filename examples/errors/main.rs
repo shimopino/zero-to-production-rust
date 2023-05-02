@@ -35,6 +35,19 @@ fn main() {
             println!("Caused by {}", cause);
         }
     }
+
+    let error = calc(10, -5).unwrap_err();
+    assert!(error.is::<ApplicationError>());
+
+    match error.downcast_ref::<ApplicationError>() {
+        Some(ApplicationError::DivivedByZero) => {
+            println!("Error is [DivivedByZero]")
+        }
+        Some(ApplicationError::NegativeNumber) => {
+            println!("Error is [NegativeNumber]")
+        }
+        None => println!("not [ApplicationError]"),
+    }
 }
 
 fn run() -> anyhow::Result<()> {
@@ -46,7 +59,9 @@ fn run() -> anyhow::Result<()> {
 }
 
 fn calc(a: i32, b: i32) -> anyhow::Result<i32> {
-    ensure!(b == 0, ApplicationError::DivivedByZero);
+    if b == 0 {
+        bail!(ApplicationError::DivivedByZero)
+    }
     ensure!(a < 0, ApplicationError::NegativeNumber);
 
     Ok(a + b)

@@ -604,6 +604,32 @@ fn calc(a: i32, b: i32) -> anyhow::Result<i32> {
 }
 ```
 
+`anyhow::Error` ではトレイト境界に `Send + Sync + 'static` が設定されているため、標準ライブラリの `Error` トレイトと同じように `is` や `downcast_ref` などのメソッドを使用することができ、呼び出し元で柔軟にエラーハンドリングすることが可能となる。
+
+```rs
+fn main() {
+    let error = calc(10, -5).unwrap_err();
+    assert!(error.is::<ApplicationError>());
+
+    match error.downcast_ref::<ApplicationError>() {
+        Some(ApplicationError::DivivedByZero) => {
+            println!("Error is [DivivedByZero]")
+        }
+        Some(ApplicationError::NegativeNumber) => {
+            println!("Error is [NegativeNumber]")
+        }
+        None => println!("not [ApplicationError]"),
+    }
+}
+
+fn calc(a: i32, b: i32) -> anyhow::Result<i32> {
+    ensure!(b == 0, ApplicationError::DivivedByZero);
+    ensure!(a < 0, ApplicationError::NegativeNumber);
+
+    Ok(a + b)
+}
+```
+
 ## sqlx での使い方
 
 ## axum との組み合わせ
