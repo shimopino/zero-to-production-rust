@@ -10,7 +10,8 @@
   - [anyhow クレート](#anyhow-クレート)
   - [各種クレートでのエラーハンドリング](#各種クレートでのエラーハンドリング)
     - [sqlx での使い方](#sqlx-での使い方)
-    - [axum との組み合わせ](#axum-との組み合わせ)
+    - [reqwest での使い方](#reqwest-での使い方)
+  - [axum との組み合わせ](#axum-との組み合わせ)
   - [参考資料](#参考資料)
 
 ## Rust におけるエラーハンドリングの基本
@@ -716,7 +717,61 @@ pub async fn revert(
 
 基本的には `core` で自作している `Error` 型を他の feature でも利用するような形式となっており、それ以外の型も組み合わせる時には `anyhow` を利用している。
 
-### axum との組み合わせ
+### reqwest での使い方
+
+reqwest では [Error](https://github.com/seanmonstar/reqwest/blob/master/src/error.rs) をカスタマイズしており、エラーの種別やリクエスト時に指定した URL などを取得できるように定義されている。
+
+```rs
+pub struct Error {
+    inner: Box<Inner>,
+}
+
+pub(crate) type BoxError = Box<dyn StdError + Send + Sync>;
+
+struct Inner {
+    kind: Kind,
+    source: Option<BoxError>,
+    url: Option<Url>,
+}
+
+#[derive(Debug)]
+pub(crate) enum Kind {
+    Builder,
+    Request,
+    Redirect,
+    Status(StatusCode),
+    Body,
+    Decode,
+    Upgrade,
+}
+```
+
+そして `Debug` 属性や `thiserror` などは使用せずに、以下のようにエラー型で管理している種別に応じてエラーメッセージを変更するようにカスタマイズを行なっている。
+
+```rs
+impl fmt::Debug for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // ...
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.inner.kind {
+            Kind::Builder => f.write_str("builder error")?,
+            Kind::Request => f.write_str("error sending request")?,
+            Kind::Body => f.write_str("request or response body error")?,
+            // ...
+        };
+
+        // ...
+    }
+}
+```
+
+reqewest はそれほど大規模なクレートというわけではないため、おそらく自身でエラーに関する内容を定義し、外部のクレートに依存しないようにしていると考えられる。
+
+## axum との組み合わせ
 
 https://docs.rs/axum/latest/axum/error_handling/index.html
 
