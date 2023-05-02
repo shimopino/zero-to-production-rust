@@ -1,5 +1,3 @@
-use std::error::Error;
-
 use anyhow::Context;
 use axum::{
     extract::{Query, State},
@@ -12,7 +10,7 @@ use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::startup::AppState;
+use crate::{error::error_chain_fmt, startup::AppState};
 
 #[derive(Deserialize)]
 pub struct Parameters {
@@ -29,13 +27,7 @@ pub enum ConfirmationError {
 
 impl std::fmt::Debug for ConfirmationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{}\n", self)?;
-        let mut current = self.source();
-        while let Some(cause) = current {
-            write!(f, "Caused by:\n\t{}", cause)?;
-            current = cause.source();
-        }
-        Ok(())
+        error_chain_fmt(self, f)
     }
 }
 
