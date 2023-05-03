@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use axum::{
     body::Body,
-    http::{self, Request},
+    http::{self, HeaderValue, Request},
     Router,
 };
 use hyper::HeaderMap;
@@ -120,13 +120,21 @@ impl TestApp {
     pub async fn post_newsletters(
         &mut self,
         body: serde_json::Value,
+        with_auth_header: bool,
     ) -> (axum::http::StatusCode, HeaderMap) {
-        let request = Request::builder()
+        let mut request = Request::builder()
             .method(http::Method::POST)
             .uri("/newsletters")
             .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
             .body(Body::from(serde_json::to_vec(&body).unwrap()))
             .unwrap();
+
+        if with_auth_header {
+            let auth_value =
+                basic_auth_value(Uuid::new_v4().to_string(), Uuid::new_v4().to_string());
+
+            request.headers_mut().insert("Authorization", auth_value);
+        }
 
         let response = self
             .app
@@ -194,4 +202,22 @@ pub fn extract_query_params(url: &Url) -> HashMap<String, String> {
     url.query_pairs()
         .map(|(key, value)| (key.to_string(), value.to_string()))
         .collect()
+}
+
+pub fn basic_auth_value(username: String, password: String) -> HeaderValue {
+    use base64::prelude::BASE64_STANDARD;
+    use base64::write::EncoderWriter;
+    use std::io::Write;
+
+    let mut buf = b"Basic ".to_vec();
+    {
+        let mut encoder = EncoderWriter::new(&mut buf, &BASE64_STANDARD);
+        let _ = write!(encoder, "{}:", username);
+        let _ = write!(encoder, "{}", password);
+    }
+
+    let mut header =
+        HeaderValue::from_bytes(&buf).expect("Failed to encode base64 authorization header");
+    header.set_sensitive(true);
+    header
 }

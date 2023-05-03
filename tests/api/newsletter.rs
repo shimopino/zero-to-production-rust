@@ -1,4 +1,4 @@
-use axum::http::{HeaderValue, StatusCode};
+use axum::http::StatusCode;
 use wiremock::{
     matchers::{any, method, path},
     Mock, ResponseTemplate,
@@ -27,7 +27,7 @@ async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
         }
     });
 
-    let (status_code, _) = app.post_newsletters(newsletter_request_body).await;
+    let (status_code, _) = app.post_newsletters(newsletter_request_body, true).await;
 
     assert_eq!(status_code, StatusCode::OK);
 }
@@ -53,7 +53,7 @@ async fn newsletters_are_delivered_to_confirmed_subscribers() {
             "html": "<p>Newsletter body as HTML</p>",
         }
     });
-    let (status_code, _) = app.post_newsletters(newsletter_request_body).await;
+    let (status_code, _) = app.post_newsletters(newsletter_request_body, true).await;
 
     assert_eq!(status_code, StatusCode::OK);
 }
@@ -79,7 +79,7 @@ async fn newsletters_returns_400_for_invalid_data() {
     ];
 
     for (invalid_body, error_message) in test_cases {
-        let (status_code, _) = app.post_newsletters(invalid_body).await;
+        let (status_code, _) = app.post_newsletters(invalid_body, true).await;
 
         // Assert
         assert_eq!(
@@ -96,14 +96,19 @@ async fn requests_missing_authorization_are_rejected() {
     // Arrange
     let mut app = setup_app().await;
 
+    // Act
     let (status_code, headers) = app
-        .post_newsletters(serde_json::json!({
-            "title": "Newsletter title",
-            "content": {
-                "text": "Newsletter body as plain text",
-                "html": "<p>Newsletter body as HTML</p>"
-            }
-        }))
+        .post_newsletters(
+            serde_json::json!({
+                "title": "Newsletter title",
+                "content": {
+                    "text": "Newsletter body as plain text",
+                    "html": "<p>Newsletter body as HTML</p>"
+                }
+            }),
+            // ここだけメソッドを使用せずにそのままリクエストしてしまっても良さそう
+            false,
+        )
         .await;
 
     assert_eq!(status_code, StatusCode::UNAUTHORIZED);
