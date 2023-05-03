@@ -1,15 +1,12 @@
-use std::collections::HashMap;
-
 use axum::{
     body::Body,
     http::{self, Request, StatusCode},
 };
-use reqwest::Url;
 use tower::ServiceExt;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 
-use crate::helpers::setup_app;
+use crate::helpers::{extract_query_params, setup_app};
 
 #[tokio::test]
 async fn confrmations_without_token_are_rejected_with_a_400() {
@@ -138,10 +135,4 @@ async fn clicking_on_the_confirmation_link_confirms_a_subscriber() {
     assert_eq!(saved.email, "shimopino@example.com");
     assert_eq!(saved.name, "shimopino");
     assert_eq!(saved.status, "confirmed");
-}
-
-fn extract_query_params(url: &Url) -> HashMap<String, String> {
-    url.query_pairs()
-        .map(|(key, value)| (key.to_string(), value.to_string()))
-        .collect()
 }
