@@ -43,6 +43,7 @@ hyper = "0.14"
 rand = "0.8"
 thiserror = "1.0"
 anyhow = "1.0"
+base64 = "0.21"
 
 [dependencies.sqlx]
 version = "^0.6"

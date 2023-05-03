@@ -91,6 +91,25 @@ async fn newsletters_returns_400_for_invalid_data() {
     }
 }
 
+#[tokio::test]
+async fn requests_missing_authorization_are_rejected() {
+    // Arrange
+    let mut app = setup_app().await;
+
+    let response = app
+        .post_newsletters(serde_json::json!({
+            "title": "Newsletter title",
+            "content": {
+                "text": "Newsletter body as plain text",
+                "html": "<p>Newsletter body as HTML</p>"
+            }
+        }))
+        .await;
+
+    assert_eq!(response, StatusCode::UNAUTHORIZED);
+    // assert_eq!(r#"Basic realm="publish""#, headers.get("WWW-Authenticate"));
+}
+
 async fn create_unconfirmed_subscriber(app: &mut TestApp) -> ConfirmationLinks {
     let body = "name=shimopino&email=shimopino%40example.com";
 

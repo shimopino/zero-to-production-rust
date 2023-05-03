@@ -1,6 +1,8 @@
 use anyhow::Context;
 use axum::{extract::State, response::IntoResponse, Json};
-use hyper::StatusCode;
+use base64::Engine;
+use hyper::{HeaderMap, StatusCode};
+use secrecy::Secret;
 use serde::Deserialize;
 use sqlx::PgPool;
 
@@ -20,6 +22,8 @@ pub struct Content {
 
 #[derive(thiserror::Error)]
 pub enum PublishError {
+    #[error("Authentication failed")]
+    AuthError(#[source] anyhow::Error),
     #[error(transparent)]
     UnexpectedError(#[from] anyhow::Error),
 }
@@ -34,6 +38,7 @@ impl IntoResponse for PublishError {
     fn into_response(self) -> axum::response::Response {
         let status_code = match self {
             PublishError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            PublishError::AuthError(_) => StatusCode::UNAUTHORIZED,
         };
 
         status_code.into_response()
@@ -41,9 +46,12 @@ impl IntoResponse for PublishError {
 }
 
 pub async fn publish_subscriber(
+    headers: HeaderMap,
     State(state): State<AppState>,
     Json(body): Json<BodyData>,
 ) -> Result<impl IntoResponse, PublishError> {
+    let _credentials = basic_authentication(&headers).map_err(PublishError::AuthError);
+
     let subscribers = get_confirmed_subscribers(&state.db_state.db_pool).await?;
 
     for subscriber in subscribers {
@@ -105,4 +113,45 @@ async fn get_confirmed_subscribers(
     .collect();
 
     Ok(confirmed_subscribers)
+}
+
+struct Credentials {
+    username: String,
+    password: Secret<String>,
+}
+
+#[tracing::instrument(name = "extract username & password from Authorization")]
+fn basic_authentication(headers: &HeaderMap) -> Result<Credentials, anyhow::Error> {
+    let header_value = headers
+        .get("Authorization")
+        .context("The 'Authrization' header was missing")?
+        .to_str()
+        .context("The 'Authorization' header was not a valid UTF8 string.")?;
+
+    let base64encoded_segment = header_value
+        .strip_prefix("Basic ")
+        .context("The authorization scheme was not 'Basic'")?;
+
+    let decoded_bytes = base64::engine::general_purpose::STANDARD
+        .decode(base64encoded_segment)
+        .context("Failed to base64-encoded 'Basic' credentials")?;
+
+    let decoded_credentials = String::from_utf8(decoded_bytes)
+        .context("The decoded credentials string is not valid UTF8.")?;
+
+    // 仕様に基づいてユーザー名とパスワードを分離
+    let mut credentials = decoded_credentials.splitn(2, ':');
+    let username = credentials
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("A username must be provided in 'Basic' auth"))?
+        .to_string();
+    let password = credentials
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("A password must be provided in 'Basic' auth"))?
+        .to_string();
+
+    Ok(Credentials {
+        username,
+        password: Secret::new(password),
+    })
 }
