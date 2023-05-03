@@ -1,5 +1,26 @@
 {
   "db": "PostgreSQL",
+  "03f7765c6a0083cf65ae554a9c6147b4987474a790218a079c9925daac57274b": {
+    "describe": {
+      "columns": [
+        {
+          "name": "user_id",
+          "ordinal": 0,
+          "type_info": "Uuid"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      }
+    },
+    "query": "\n        SELECT user_id\n        FROM users\n        WHERE username = $1 AND password_hash = $2 "
+  },
   "39a76ca87097dab85c9d35ea5e98720b3c2c44c87222a4d5a4f4a6cbbdecca9e": {
     "describe": {
       "columns": [
@@ -49,27 +70,6 @@
       }
     },
     "query": "\n        SELECT email FROM subscriptions WHERE status = 'confirmed'\n        "
-  },
-  "e353ac6e0fb68e50fe7bae5a6220759db689b9f96c6f639a97912020988b79c3": {
-    "describe": {
-      "columns": [
-        {
-          "name": "user_id",
-          "ordinal": 0,
-          "type_info": "Uuid"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Text"
-        ]
-      }
-    },
-    "query": "\n        SELECT user_id\n        FROM users\n        WHERE username = $1 AND password = $2 "
   },
   "e6822c9e162eabc20338cc27d51a8e80578803ec1589c234d93c3919d14a96a6": {
     "describe": {
