@@ -1,9 +1,4 @@
-use axum::{
-    body::Body,
-    http::{self, Request, StatusCode},
-};
-use serde_json::json;
-use tower::{Service, ServiceExt};
+use axum::http::StatusCode;
 use wiremock::{
     matchers::{any, method, path},
     Mock, ResponseTemplate,
@@ -24,33 +19,17 @@ async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
         .await;
 
     // Act
+    let newsletter_request_body = serde_json::json!({
+        "title": "Newsletter title",
+        "content": {
+            "text": "Newsletter body as plain text",
+            "html": "<p>Newsletter body as HTML</p>",
+        }
+    });
 
-    let response = app
-        .app
-        .ready()
-        .await
-        .unwrap()
-        .call(
-            Request::builder()
-                .method(http::Method::POST)
-                .uri("/newsletters")
-                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
-                .body(Body::from(
-                    serde_json::to_vec(&json!({
-                        "title": "Newsletter title",
-                        "content": {
-                            "text": "Newsletter body as plain text",
-                            "html": "<p>Newsletter body as HTML</p>",
-                        }
-                    }))
-                    .unwrap(),
-                ))
-                .unwrap(),
-        )
-        .await
-        .expect("Failed to execute request");
+    let status_code = app.post_newsletters(newsletter_request_body).await;
 
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(status_code, StatusCode::OK);
 }
 
 #[tokio::test]
@@ -74,25 +53,9 @@ async fn newsletters_are_delivered_to_confirmed_subscribers() {
             "html": "<p>Newsletter body as HTML</p>",
         }
     });
-    let response = app
-        .app
-        .ready()
-        .await
-        .unwrap()
-        .call(
-            Request::builder()
-                .method(http::Method::POST)
-                .uri("/newsletters")
-                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
-                .body(Body::from(
-                    serde_json::to_vec(&newsletter_request_body).unwrap(),
-                ))
-                .unwrap(),
-        )
-        .await
-        .expect("Failed to execute request");
+    let status_code = app.post_newsletters(newsletter_request_body).await;
 
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(status_code, StatusCode::OK);
 }
 
 #[tokio::test]
@@ -116,25 +79,11 @@ async fn newsletters_returns_400_for_invalid_data() {
     ];
 
     for (invalid_body, error_message) in test_cases {
-        let response = app
-            .app
-            .ready()
-            .await
-            .unwrap()
-            .call(
-                Request::builder()
-                    .method(http::Method::POST)
-                    .uri("/newsletters")
-                    .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
-                    .body(Body::from(serde_json::to_vec(&invalid_body).unwrap()))
-                    .unwrap(),
-            )
-            .await
-            .expect("Failed to execute request");
+        let status_code = app.post_newsletters(invalid_body).await;
 
         // Assert
         assert_eq!(
-            response.status(),
+            status_code,
             StatusCode::UNPROCESSABLE_ENTITY,
             "The API did not fail with 400 Bad Request when the payload was {}.",
             error_message

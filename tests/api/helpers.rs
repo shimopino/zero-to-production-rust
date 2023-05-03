@@ -115,6 +115,26 @@ impl TestApp {
             .await
             .expect("Failed to execute request");
     }
+
+    pub async fn post_newsletters(&mut self, body: serde_json::Value) -> axum::http::StatusCode {
+        let request = Request::builder()
+            .method(http::Method::POST)
+            .uri("/newsletters")
+            .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+
+        let response = self
+            .app
+            .ready()
+            .await
+            .unwrap()
+            .call(request)
+            .await
+            .expect("Failed to execute request");
+
+        response.status()
+    }
 }
 
 pub async fn setup_app() -> TestApp {
