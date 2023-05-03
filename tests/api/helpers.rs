@@ -1,9 +1,12 @@
+use std::collections::HashMap;
+
 use axum::{
     body::Body,
     http::{self, Request},
     Router,
 };
 use once_cell::sync::Lazy;
+use reqwest::Url;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use tower::{Service, ServiceExt};
 use uuid::Uuid;
@@ -93,6 +96,25 @@ impl TestApp {
 
         ConfirmationLinks { html, plain_text }
     }
+
+    pub async fn confirm_link(&mut self, token: String) {
+        let request = Request::builder()
+            .method(http::Method::GET)
+            .uri(format!(
+                "/subscriptions/confirm?subscription_token={}",
+                token
+            ))
+            .body(Body::empty())
+            .unwrap();
+
+        self.app
+            .ready()
+            .await
+            .unwrap()
+            .call(request)
+            .await
+            .expect("Failed to execute request");
+    }
 }
 
 pub async fn setup_app() -> TestApp {
@@ -142,4 +164,10 @@ pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .expect("Failed to migrate the database");
 
     connection_pool
+}
+
+pub fn extract_query_params(url: &Url) -> HashMap<String, String> {
+    url.query_pairs()
+        .map(|(key, value)| (key.to_string(), value.to_string()))
+        .collect()
 }

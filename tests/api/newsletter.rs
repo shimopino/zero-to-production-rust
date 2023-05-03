@@ -9,7 +9,7 @@ use wiremock::{
     Mock, ResponseTemplate,
 };
 
-use crate::helpers::{setup_app, TestApp};
+use crate::helpers::{extract_query_params, setup_app, ConfirmationLinks, TestApp};
 
 #[tokio::test]
 async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
@@ -53,7 +53,49 @@ async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
     assert_eq!(response.status(), StatusCode::OK);
 }
 
-async fn create_unconfirmed_subscriber(app: &mut TestApp) {
+#[tokio::test]
+async fn newsletters_are_delivered_to_confirmed_subscribers() {
+    // Arrange
+    let mut app = setup_app().await;
+    create_confirmed_subscriber(&mut app).await;
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&app.email_server)
+        .await;
+
+    // Act
+    let newsletter_request_body = serde_json::json!({
+        "title": "Newsletter title",
+        "content": {
+            "text": "Newsletter body as plain text",
+            "html": "<p>Newsletter body as HTML</p>",
+        }
+    });
+    let response = app
+        .app
+        .ready()
+        .await
+        .unwrap()
+        .call(
+            Request::builder()
+                .method(http::Method::POST)
+                .uri("/newsletters")
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .body(Body::from(
+                    serde_json::to_vec(&newsletter_request_body).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .expect("Failed to execute request");
+
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+async fn create_unconfirmed_subscriber(app: &mut TestApp) -> ConfirmationLinks {
     let body = "name=shimopino&email=shimopino%40example.com";
 
     let _mock_guard = Mock::given(path("/email"))
@@ -65,4 +107,27 @@ async fn create_unconfirmed_subscriber(app: &mut TestApp) {
         .await;
 
     app.post_subscription(body.into()).await;
+
+    // Emailサーバーに送信されたメールから本文を抽出する
+    let email_request = &app
+        .email_server
+        .received_requests()
+        .await
+        .unwrap()
+        .pop()
+        .unwrap();
+
+    // メール本文からURLリンクを抽出する
+    app.get_confirmation_links(email_request)
+}
+
+async fn create_confirmed_subscriber(app: &mut TestApp) {
+    // リンクからトークンを抽出して送信することで、確認済みデータを作成する
+    let confirmation_links = create_unconfirmed_subscriber(app).await;
+
+    let query_params = extract_query_params(&confirmation_links.html);
+    let token = query_params.get("subscription_token").unwrap().to_owned();
+
+    // Act
+    app.confirm_link(token).await;
 }
