@@ -95,6 +95,53 @@ async fn newsletters_are_delivered_to_confirmed_subscribers() {
     assert_eq!(response.status(), StatusCode::OK);
 }
 
+#[tokio::test]
+async fn newsletters_returns_400_for_invalid_data() {
+    // Arrange
+    let mut app = setup_app().await;
+    let test_cases = vec![
+        (
+            serde_json::json!({
+                "content": {
+                    "text": "Newsletter body as plain text",
+                    "html": "<p>Newsletter body as HTML</p>"
+                }
+            }),
+            "missing title",
+        ),
+        (
+            serde_json::json!({"title": "Newsletter!"}),
+            "missing content",
+        ),
+    ];
+
+    for (invalid_body, error_message) in test_cases {
+        let response = app
+            .app
+            .ready()
+            .await
+            .unwrap()
+            .call(
+                Request::builder()
+                    .method(http::Method::POST)
+                    .uri("/newsletters")
+                    .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                    .body(Body::from(serde_json::to_vec(&invalid_body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .expect("Failed to execute request");
+
+        // Assert
+        assert_eq!(
+            response.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "The API did not fail with 400 Bad Request when the payload was {}.",
+            error_message
+        );
+    }
+}
+
 async fn create_unconfirmed_subscriber(app: &mut TestApp) -> ConfirmationLinks {
     let body = "name=shimopino&email=shimopino%40example.com";
 
