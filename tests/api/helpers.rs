@@ -122,6 +122,8 @@ impl TestApp {
         body: serde_json::Value,
         with_auth_header: bool,
     ) -> (axum::http::StatusCode, HeaderMap) {
+        let (username, password) = self.test_user().await;
+
         let mut request = Request::builder()
             .method(http::Method::POST)
             .uri("/newsletters")
@@ -130,8 +132,7 @@ impl TestApp {
             .unwrap();
 
         if with_auth_header {
-            let auth_value =
-                basic_auth_value(Uuid::new_v4().to_string(), Uuid::new_v4().to_string());
+            let auth_value = basic_auth_value(username, password);
 
             request.headers_mut().insert("Authorization", auth_value);
         }
@@ -146,6 +147,15 @@ impl TestApp {
             .expect("Failed to execute request");
 
         (response.status(), response.headers().to_owned())
+    }
+
+    pub async fn test_user(&self) -> (String, String) {
+        let row = sqlx::query!("SELECT username, password FROM users LIMIT 1")
+            .fetch_one(&self.db_pool)
+            .await
+            .expect("Failed to create test users.");
+
+        (row.username, row.password)
     }
 }
 
@@ -167,11 +177,16 @@ pub async fn setup_app() -> TestApp {
 
     let application = Application::build(configuration.clone());
 
-    TestApp {
+    let test_app = TestApp {
         app: application.app(),
         db_pool: get_connection_pool(&configuration.database),
         email_server,
-    }
+    };
+
+    // テスト用のユーザーを事前に作成する
+    add_test_user(&test_app.db_pool).await;
+
+    test_app
 }
 
 pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
@@ -220,4 +235,17 @@ pub fn basic_auth_value(username: String, password: String) -> HeaderValue {
         HeaderValue::from_bytes(&buf).expect("Failed to encode base64 authorization header");
     header.set_sensitive(true);
     header
+}
+
+async fn add_test_user(pool: &PgPool) {
+    sqlx::query!(
+        "INSERT INTO users (user_id, username, password)
+        VALUES ($1, $2, $3)",
+        Uuid::new_v4(),
+        Uuid::new_v4().to_string(),
+        Uuid::new_v4().to_string(),
+    )
+    .execute(pool)
+    .await
+    .expect("Failed to create test users.");
 }

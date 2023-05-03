@@ -50,6 +50,27 @@
     },
     "query": "\n        SELECT email FROM subscriptions WHERE status = 'confirmed'\n        "
   },
+  "e353ac6e0fb68e50fe7bae5a6220759db689b9f96c6f639a97912020988b79c3": {
+    "describe": {
+      "columns": [
+        {
+          "name": "user_id",
+          "ordinal": 0,
+          "type_info": "Uuid"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      }
+    },
+    "query": "\n        SELECT user_id\n        FROM users\n        WHERE username = $1 AND password = $2 "
+  },
   "e6822c9e162eabc20338cc27d51a8e80578803ec1589c234d93c3919d14a96a6": {
     "describe": {
       "columns": [],
