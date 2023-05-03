@@ -7,7 +7,7 @@ use axum::{
 };
 use base64::Engine;
 use hyper::{header, HeaderMap, StatusCode};
-use secrecy::Secret;
+use secrecy::{ExposeSecret, Secret};
 use serde::Deserialize;
 use sqlx::PgPool;
 
@@ -57,13 +57,21 @@ impl IntoResponse for PublishError {
     }
 }
 
-#[tracing::instrument(name = "Publish subcriber handler", skip(state, headers))]
+#[tracing::instrument(
+    name = "Publish a newsletterissue",
+    skip(state, headers, body),
+    fields(username=tracing::field::Empty, user_id=tracing::field::Empty)
+)]
 pub async fn publish_subscriber(
     headers: HeaderMap,
     State(state): State<AppState>,
     Json(body): Json<BodyData>,
 ) -> Result<impl IntoResponse, PublishError> {
-    let _credentials = basic_authentication(&headers).map_err(PublishError::AuthError)?;
+    let credentials = basic_authentication(&headers).map_err(PublishError::AuthError)?;
+    tracing::Span::current().record("username", &tracing::field::display(&credentials.username));
+
+    let user_id = validate_credentials(credentials, &state.db_state.db_pool).await?;
+    tracing::Span::current().record("user_id", &tracing::field::display(&user_id));
 
     let subscribers = get_confirmed_subscribers(&state.db_state.db_pool).await?;
 
@@ -167,4 +175,27 @@ fn basic_authentication(headers: &HeaderMap) -> Result<Credentials, anyhow::Erro
         username,
         password: Secret::new(password),
     })
+}
+
+async fn validate_credentials(
+    credentials: Credentials,
+    pool: &PgPool,
+) -> Result<uuid::Uuid, PublishError> {
+    let user_id: Option<_> = sqlx::query!(
+        r#"
+        SELECT user_id
+        FROM users
+        WHERE username = $1 AND password = $2 "#,
+        credentials.username,
+        credentials.password.expose_secret()
+    )
+    .fetch_optional(pool)
+    .await
+    .context("Failed to perform a query to validate auth credentials.")
+    .map_err(PublishError::UnexpectedError)?;
+
+    user_id
+        .map(|row| row.user_id)
+        .ok_or_else(|| anyhow::anyhow!("Invalid username or password"))
+        .map_err(PublishError::UnexpectedError)
 }
