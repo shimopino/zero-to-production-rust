@@ -51,7 +51,7 @@ pub async fn publish_subscriber(
     State(state): State<AppState>,
     Json(body): Json<BodyData>,
 ) -> Result<impl IntoResponse, PublishError> {
-    let _credentials = basic_authentication(&headers).map_err(PublishError::AuthError);
+    let _credentials = basic_authentication(&headers).map_err(PublishError::AuthError)?;
 
     let subscribers = get_confirmed_subscribers(&state.db_state.db_pool).await?;
 
