@@ -45,6 +45,7 @@ impl IntoResponse for PublishError {
     }
 }
 
+#[tracing::instrument(name = "Publish subcriber handler", skip(state, headers))]
 pub async fn publish_subscriber(
     headers: HeaderMap,
     State(state): State<AppState>,
@@ -124,7 +125,7 @@ struct Credentials {
 fn basic_authentication(headers: &HeaderMap) -> Result<Credentials, anyhow::Error> {
     let header_value = headers
         .get("Authorization")
-        .context("The 'Authrization' header was missing")?
+        .context("The 'Authorization' header was missing")?
         .to_str()
         .context("The 'Authorization' header was not a valid UTF8 string.")?;
 
