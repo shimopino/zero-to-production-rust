@@ -5,6 +5,7 @@ use axum::{
     http::{self, Request},
     Router,
 };
+use hyper::HeaderMap;
 use once_cell::sync::Lazy;
 use reqwest::Url;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
@@ -116,7 +117,10 @@ impl TestApp {
             .expect("Failed to execute request");
     }
 
-    pub async fn post_newsletters(&mut self, body: serde_json::Value) -> axum::http::StatusCode {
+    pub async fn post_newsletters(
+        &mut self,
+        body: serde_json::Value,
+    ) -> (axum::http::StatusCode, HeaderMap) {
         let request = Request::builder()
             .method(http::Method::POST)
             .uri("/newsletters")
@@ -133,7 +137,7 @@ impl TestApp {
             .await
             .expect("Failed to execute request");
 
-        response.status()
+        (response.status(), response.headers().to_owned())
     }
 }
 

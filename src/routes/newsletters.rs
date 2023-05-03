@@ -1,7 +1,12 @@
 use anyhow::Context;
-use axum::{extract::State, response::IntoResponse, Json};
+use axum::{
+    body::Body,
+    extract::State,
+    response::{IntoResponse, Response},
+    Json,
+};
 use base64::Engine;
-use hyper::{HeaderMap, StatusCode};
+use hyper::{header, HeaderMap, StatusCode};
 use secrecy::Secret;
 use serde::Deserialize;
 use sqlx::PgPool;
@@ -36,12 +41,19 @@ impl std::fmt::Debug for PublishError {
 
 impl IntoResponse for PublishError {
     fn into_response(self) -> axum::response::Response {
-        let status_code = match self {
-            PublishError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            PublishError::AuthError(_) => StatusCode::UNAUTHORIZED,
+        let response = match self {
+            PublishError::UnexpectedError(_) => Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Body::empty())
+                .unwrap(),
+            PublishError::AuthError(_) => Response::builder()
+                .status(StatusCode::UNAUTHORIZED)
+                .header(header::WWW_AUTHENTICATE, r#"Basic realm="publish""#)
+                .body(Body::empty())
+                .unwrap(),
         };
 
-        status_code.into_response()
+        response.into_response()
     }
 }
 
