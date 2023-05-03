@@ -8,6 +8,7 @@ use axum::{
 use hyper::HeaderMap;
 use once_cell::sync::Lazy;
 use reqwest::Url;
+use sha3::Digest;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use tower::{Service, ServiceExt};
 use uuid::Uuid;
@@ -41,6 +42,7 @@ pub struct TestApp {
     pub app: Router,
     pub db_pool: PgPool,
     pub email_server: MockServer,
+    test_user: TestUser,
 }
 
 impl TestApp {
@@ -122,8 +124,6 @@ impl TestApp {
         body: serde_json::Value,
         with_auth_header: bool,
     ) -> (axum::http::StatusCode, HeaderMap) {
-        let (username, password) = self.test_user().await;
-
         let mut request = Request::builder()
             .method(http::Method::POST)
             .uri("/newsletters")
@@ -132,7 +132,7 @@ impl TestApp {
             .unwrap();
 
         if with_auth_header {
-            let auth_value = basic_auth_value(username, password);
+            let auth_value = basic_auth_value(&self.test_user.username, &self.test_user.password);
 
             request.headers_mut().insert("Authorization", auth_value);
         }
@@ -148,14 +148,37 @@ impl TestApp {
 
         (response.status(), response.headers().to_owned())
     }
+}
 
-    pub async fn test_user(&self) -> (String, String) {
-        let row = sqlx::query!("SELECT username, password FROM users LIMIT 1")
-            .fetch_one(&self.db_pool)
-            .await
-            .expect("Failed to create test users.");
+pub struct TestUser {
+    pub user_id: Uuid,
+    pub username: String,
+    pub password: String,
+}
 
-        (row.username, row.password)
+impl TestUser {
+    pub fn generate() -> Self {
+        Self {
+            user_id: Uuid::new_v4(),
+            username: Uuid::new_v4().to_string(),
+            password: Uuid::new_v4().to_string(),
+        }
+    }
+
+    async fn store(&self, pool: &PgPool) {
+        let password_hash = sha3::Sha3_256::digest(self.password.as_bytes());
+        let password_hash = format!("{:x}", password_hash);
+
+        sqlx::query!(
+            "INSERT INTO users (user_id, username, password_hash)
+            VALUES ($1, $2, $3)",
+            self.user_id,
+            self.username,
+            password_hash
+        )
+        .execute(pool)
+        .await
+        .expect("Failed to store test user.");
     }
 }
 
@@ -181,11 +204,10 @@ pub async fn setup_app() -> TestApp {
         app: application.app(),
         db_pool: get_connection_pool(&configuration.database),
         email_server,
+        test_user: TestUser::generate(),
     };
 
-    // テスト用のユーザーを事前に作成する
-    add_test_user(&test_app.db_pool).await;
-
+    test_app.test_user.store(&test_app.db_pool).await;
     test_app
 }
 
@@ -219,7 +241,7 @@ pub fn extract_query_params(url: &Url) -> HashMap<String, String> {
         .collect()
 }
 
-pub fn basic_auth_value(username: String, password: String) -> HeaderValue {
+pub fn basic_auth_value(username: &String, password: &String) -> HeaderValue {
     use base64::prelude::BASE64_STANDARD;
     use base64::write::EncoderWriter;
     use std::io::Write;
@@ -235,17 +257,4 @@ pub fn basic_auth_value(username: String, password: String) -> HeaderValue {
         HeaderValue::from_bytes(&buf).expect("Failed to encode base64 authorization header");
     header.set_sensitive(true);
     header
-}
-
-async fn add_test_user(pool: &PgPool) {
-    sqlx::query!(
-        "INSERT INTO users (user_id, username, password)
-        VALUES ($1, $2, $3)",
-        Uuid::new_v4(),
-        Uuid::new_v4().to_string(),
-        Uuid::new_v4().to_string(),
-    )
-    .execute(pool)
-    .await
-    .expect("Failed to create test users.");
 }

@@ -44,6 +44,7 @@ rand = "0.8"
 thiserror = "1.0"
 anyhow = "1.0"
 base64 = "0.21"
+sha3 = "0.10"
 
 [dependencies.sqlx]
 version = "^0.6"
