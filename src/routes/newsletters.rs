@@ -84,30 +84,25 @@ struct ConfirmedSubscriber {
 async fn get_confirmed_subscribers(
     pool: &PgPool,
 ) -> Result<Vec<Result<ConfirmedSubscriber, anyhow::Error>>, anyhow::Error> {
-    struct Row {
-        email: String,
-    }
-
+    // query_as!(構造体、クエリ、パラメータ)
     // クエリ内の列の名前が構造体のフィールドと同じであることが期待される
     // 構造体リテラルを使用して行をマッピングする（順序は同じでなくても良い）
     // 列がNULLの可能性がある場合は Option<_> でラップする必要がある
-    let rows = sqlx::query_as!(
-        Row,
+
+    // ただし、 query! で取得したデータを変更するようにすれば一発で記述可能
+    let confirmed_subscribers = sqlx::query!(
         r#"
-        SELECT email
-        FROM subscriptions
-        WHERE status = 'confirmed' "#,
+        SELECT email FROM subscriptions WHERE status = 'confirmed'
+        "#
     )
     .fetch_all(pool)
-    .await?;
-
-    let confirmed_subscribers = rows
-        .into_iter()
-        .map(|r| match SubscriberEmail::parse(r.email) {
-            Ok(email) => Ok(ConfirmedSubscriber { email }),
-            Err(error) => Err(anyhow::anyhow!(error)),
-        })
-        .collect();
+    .await?
+    .into_iter()
+    .map(|r| match SubscriberEmail::parse(r.email) {
+        Ok(email) => Ok(ConfirmedSubscriber { email }),
+        Err(error) => Err(anyhow::anyhow!(error)),
+    })
+    .collect();
 
     Ok(confirmed_subscribers)
 }
