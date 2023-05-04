@@ -1,5 +1,8 @@
-watch:
-	cargo watch -x check -x test -x run
+watch-test:
+	cargo watch -x check -x test
+
+watch-run:
+	cargo watch -x check -x run
 
 docker-build:
 	docker image build --tag zero2prod --file Dockerfile .

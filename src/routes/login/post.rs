@@ -2,10 +2,11 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Redirect},
-    Form,
+    Form, Json,
 };
 use secrecy::Secret;
 use serde::Deserialize;
+use serde_json::json;
 
 use crate::{
     authentication::{validate_credentials, AuthError, Credentials},
@@ -35,12 +36,18 @@ impl std::fmt::Debug for LoginError {
 
 impl IntoResponse for LoginError {
     fn into_response(self) -> axum::response::Response {
-        let status_code = match self {
-            LoginError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            LoginError::AuthError(_) => StatusCode::UNAUTHORIZED,
+        let (status_code, body) = match self {
+            LoginError::UnexpectedError(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "unauthorized"})),
+            ),
+            LoginError::AuthError(_) => (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"error": "unexpected error"})),
+            ),
         };
 
-        status_code.into_response()
+        (status_code, body).into_response()
     }
 }
 
