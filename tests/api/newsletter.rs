@@ -1,10 +1,19 @@
-use axum::http::StatusCode;
+use axum::{
+    body::Body,
+    http::{self, StatusCode},
+};
+use hyper::Request;
+use serde_json::json;
+use tower::ServiceExt;
+use uuid::Uuid;
 use wiremock::{
     matchers::{any, method, path},
     Mock, ResponseTemplate,
 };
 
-use crate::helpers::{extract_query_params, setup_app, ConfirmationLinks, TestApp};
+use crate::helpers::{
+    basic_auth_value, extract_query_params, setup_app, ConfirmationLinks, TestApp,
+};
 
 #[tokio::test]
 async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
@@ -116,6 +125,47 @@ async fn requests_missing_authorization_are_rejected() {
         headers.get("WWW-Authenticate").unwrap(),
         &r#"Basic realm="publish""#
     );
+}
+
+#[tokio::test]
+async fn non_existing_user_is_rejected() {
+    // Arrange
+    let app = setup_app().await;
+
+    // Random Credentials
+    let username = Uuid::new_v4().to_string();
+    let password = Uuid::new_v4().to_string();
+    let basic_auth = basic_auth_value(&username, &password);
+
+    // Act
+    let request = Request::builder()
+        .method(http::Method::POST)
+        .uri("/newsletters")
+        .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+        .header(http::header::AUTHORIZATION, basic_auth)
+        .body(Body::from(
+            serde_json::to_vec(&json!({
+                "title": "Newsletter title",
+                "content": {
+                    "text": "Newsletter body as plain text",
+                    "html": "<p>Newsletter body as HTML</p>"
+                }
+            }))
+            .unwrap(),
+        ))
+        .unwrap();
+
+    let response = app
+        .app
+        .oneshot(request)
+        .await
+        .expect("Failed to execute request");
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        response.headers().get("WWW-Authenticate").unwrap(),
+        &r#"Basic realm="publish""#
+    )
 }
 
 async fn create_unconfirmed_subscriber(app: &mut TestApp) -> ConfirmationLinks {
