@@ -10,7 +10,7 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 use crate::{
     configuration::{DatabaseSettings, Settings},
     email_client::EmailClient,
-    routes::{confirm, health_check, home, login_form, publish_subscriber, subscribe},
+    routes::{confirm, health_check, home, login, login_form, publish_subscriber, subscribe},
 };
 
 #[derive(Clone)]
@@ -58,6 +58,7 @@ pub fn create_app(state: AppState) -> Router {
         .route("/newsletters", post(publish_subscriber))
         .route("/", get(home))
         .route("/login", get(login_form))
+        .route("/login", post(login))
         .with_state(state)
 }
 
