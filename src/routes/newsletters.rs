@@ -12,7 +12,10 @@ use secrecy::{ExposeSecret, Secret};
 use serde::Deserialize;
 use sqlx::PgPool;
 
-use crate::{domain::SubscriberEmail, error::error_chain_fmt, startup::AppState};
+use crate::{
+    domain::SubscriberEmail, error::error_chain_fmt, startup::AppState,
+    telemetry::spawn_blocking_with_tracing,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct BodyData {
@@ -188,7 +191,7 @@ async fn validate_credentials(
         .map_err(PublishError::UnexpectedError)?
         .ok_or_else(|| PublishError::AuthError(anyhow::anyhow!("Unknown username.")))?;
 
-    tokio::task::spawn_blocking(move || {
+    spawn_blocking_with_tracing(move || {
         verify_password_hash(expected_password_hash, credentials.password)
     })
     .await
