@@ -168,6 +168,48 @@ async fn non_existing_user_is_rejected() {
     )
 }
 
+#[tokio::test]
+async fn invalid_password_is_rejected() {
+    // Arrange
+    let app = setup_app().await;
+    let username = &app.test_user.username;
+    // Random Password
+    let password = Uuid::new_v4().to_string();
+    assert_ne!(app.test_user.password, password);
+
+    let basic_auth = basic_auth_value(username, &password);
+
+    // Act
+    let request = Request::builder()
+        .method(http::Method::POST)
+        .uri("/newsletters")
+        .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+        .header(http::header::AUTHORIZATION, basic_auth)
+        .body(Body::from(
+            serde_json::to_vec(&json!({
+                "title": "Newsletter title",
+                "content": {
+                    "text": "Newsletter body as plain text",
+                    "html": "<p>Newsletter body as HTML</p>"
+                }
+            }))
+            .unwrap(),
+        ))
+        .unwrap();
+
+    let response = app
+        .app
+        .oneshot(request)
+        .await
+        .expect("Failed to execute request");
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        response.headers().get("WWW-Authenticate").unwrap(),
+        &r#"Basic realm="publish""#
+    )
+}
+
 async fn create_unconfirmed_subscriber(app: &mut TestApp) -> ConfirmationLinks {
     let body = "name=shimopino&email=shimopino%40example.com";
 
