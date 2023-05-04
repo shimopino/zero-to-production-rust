@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="em">
+  <head>
+    <meta charset="utf-8" />
+    <title>Login</title>
+  </head>
+  <body>
+    <!-- これを指定しないと今のPATHにクエリパラメータとしてメッセージ送信する -->
+    <form action="/login" method="post">
+      <label for="username">Username</label>
+      <input type="text" name="username" placeholder="Enter username" />
+
+      <label for="password">Password</label>
+      <input type="password" name="password" placeholder="Enter Password" />
+
+      <button type="submit">Login</button>
+    </form>
+  </body>
+</html>
