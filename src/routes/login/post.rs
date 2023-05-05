@@ -5,6 +5,7 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
     Form,
 };
+use hmac::{Hmac, Mac};
 use secrecy::Secret;
 use serde::Deserialize;
 
@@ -36,12 +37,20 @@ impl std::fmt::Debug for LoginError {
 
 impl IntoResponse for LoginError {
     fn into_response(self) -> axum::response::Response {
-        let encoded_error = urlencoding::Encoded::new(self.to_string());
+        let query_string = format!("error={}", urlencoding::Encoded::new(self.to_string()));
+
+        // シークレット値を登録する
+        let secret: &[u8] = todo!();
+        let hmac_tag = {
+            let mut mac = Hmac::<sha2::Sha256>::new_from_slice(secret).unwrap();
+            mac.update(query_string.as_bytes());
+            mac.finalize().into_bytes()
+        };
 
         Response::builder()
             .header(
                 http::header::LOCATION,
-                format!("/login?error={}", encoded_error),
+                format!("/login?{query_string}&tag={hmac_tag:x}"),
             )
             .status(StatusCode::SEE_OTHER)
             .body(Body::empty())
