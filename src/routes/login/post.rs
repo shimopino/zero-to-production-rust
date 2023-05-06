@@ -6,7 +6,7 @@ use axum::{
     Form,
 };
 use hmac::{Hmac, Mac};
-use secrecy::Secret;
+use secrecy::{ExposeSecret, Secret};
 use serde::Deserialize;
 
 use crate::{
@@ -35,39 +35,12 @@ impl std::fmt::Debug for LoginError {
     }
 }
 
-impl IntoResponse for LoginError {
-    fn into_response(self) -> axum::response::Response {
-        let query_string = format!("error={}", urlencoding::Encoded::new(self.to_string()));
-
-        // シークレット値を登録する
-        let secret: &[u8] = todo!();
-        let hmac_tag = {
-            let mut mac = Hmac::<sha2::Sha256>::new_from_slice(secret).unwrap();
-            mac.update(query_string.as_bytes());
-            mac.finalize().into_bytes()
-        };
-
-        Response::builder()
-            .header(
-                http::header::LOCATION,
-                format!("/login?{query_string}&tag={hmac_tag:x}"),
-            )
-            .status(StatusCode::SEE_OTHER)
-            .body(Body::empty())
-            .unwrap()
-            .into_response()
-    }
-}
-
 #[tracing::instrument(
     name = "login",
     skip(form, state),
     fields(username=tracing::field::Empty, user_id=tracing::field::Empty)
 )]
-pub async fn login(
-    State(state): State<AppState>,
-    Form(form): Form<FormData>,
-) -> Result<impl IntoResponse, LoginError> {
+pub async fn login(State(state): State<AppState>, Form(form): Form<FormData>) -> impl IntoResponse {
     let credentials = Credentials {
         username: form.username,
         password: form.password,
@@ -75,15 +48,39 @@ pub async fn login(
 
     tracing::Span::current().record("username", &tracing::field::display(&credentials.username));
 
-    let user_id = validate_credentials(credentials, &state.db_state.db_pool)
-        .await
-        .map_err(|e| match e {
-            AuthError::InvalidCredentials(_) => LoginError::AuthError(e.into()),
-            AuthError::UnexpectedError(_) => LoginError::UnexpectedError(e.into()),
-        })?;
+    match validate_credentials(credentials, &state.db_state.db_pool).await {
+        Ok(user_id) => {
+            tracing::Span::current().record("user_id", &tracing::field::display(&user_id));
 
-    tracing::Span::current().record("user_id", &tracing::field::display(&user_id));
+            // https://docs.rs/axum/latest/axum/response/struct.Redirect.html#method.to
+            Redirect::to("/").into_response()
+        }
+        Err(e) => {
+            let e = match e {
+                AuthError::InvalidCredentials(_) => LoginError::AuthError(e.into()),
+                AuthError::UnexpectedError(_) => LoginError::UnexpectedError(e.into()),
+            };
 
-    // https://docs.rs/axum/latest/axum/response/struct.Redirect.html#method.to
-    Ok(Redirect::to("/"))
+            let query_string = format!("error={}", urlencoding::Encoded::new(e.to_string()));
+
+            let hmac_tag = {
+                let mut mac = Hmac::<sha2::Sha256>::new_from_slice(
+                    state.hmac_secret.0.expose_secret().as_bytes(),
+                )
+                .unwrap();
+                mac.update(query_string.as_bytes());
+                mac.finalize().into_bytes()
+            };
+
+            Response::builder()
+                .header(
+                    http::header::LOCATION,
+                    format!("/login?{query_string}&tag={hmac_tag:x}"),
+                )
+                .status(StatusCode::SEE_OTHER)
+                .body(Body::empty())
+                .unwrap()
+                .into_response()
+        }
+    }
 }

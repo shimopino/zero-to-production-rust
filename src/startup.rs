@@ -5,6 +5,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use secrecy::Secret;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 
 use crate::{
@@ -18,6 +19,7 @@ pub struct AppState {
     pub db_state: DbState,
     pub email_client: EmailClient,
     pub base_url: ApplicationBaseUrl,
+    pub hmac_secret: HmacSecret,
 }
 
 #[derive(Clone)]
@@ -28,12 +30,21 @@ pub struct DbState {
 #[derive(Clone)]
 pub struct ApplicationBaseUrl(pub String);
 
+#[derive(Clone)]
+pub struct HmacSecret(pub Secret<String>);
+
 impl AppState {
-    pub fn new(db_pool: PgPool, email_client: EmailClient, base_url: String) -> Self {
+    pub fn new(
+        db_pool: PgPool,
+        email_client: EmailClient,
+        base_url: String,
+        hmac_secret: Secret<String>,
+    ) -> Self {
         Self {
             db_state: DbState { db_pool },
             email_client,
             base_url: ApplicationBaseUrl(base_url),
+            hmac_secret: HmacSecret(hmac_secret),
         }
     }
 }
@@ -87,6 +98,7 @@ impl Application {
             connection_pool,
             email_client,
             configuration.application.base_url,
+            configuration.application.hmac_secret,
         );
 
         // 実行する

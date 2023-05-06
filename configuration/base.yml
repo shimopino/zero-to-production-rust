@@ -1,5 +1,7 @@
 application:
   port: 8080
+  # 実際には APP_APPLICATION__HMAC_SECRET の環境変数を指定する
+  hmac_secret: "long-and-very-secret-random-key-needed-to-verify-message-integrity"
 database:
   host: "127.0.0.1"
   port: 5432
