@@ -5,12 +5,13 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use secrecy::Secret;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 
 use crate::{
     configuration::{DatabaseSettings, Settings},
     email_client::EmailClient,
-    routes::{confirm, health_check, publish_subscriber, subscribe},
+    routes::{confirm, health_check, home, login, login_form, publish_subscriber, subscribe},
 };
 
 #[derive(Clone)]
@@ -18,6 +19,7 @@ pub struct AppState {
     pub db_state: DbState,
     pub email_client: EmailClient,
     pub base_url: ApplicationBaseUrl,
+    pub hmac_secret: HmacSecret,
 }
 
 #[derive(Clone)]
@@ -28,12 +30,21 @@ pub struct DbState {
 #[derive(Clone)]
 pub struct ApplicationBaseUrl(pub String);
 
+#[derive(Clone)]
+pub struct HmacSecret(pub Secret<String>);
+
 impl AppState {
-    pub fn new(db_pool: PgPool, email_client: EmailClient, base_url: String) -> Self {
+    pub fn new(
+        db_pool: PgPool,
+        email_client: EmailClient,
+        base_url: String,
+        hmac_secret: Secret<String>,
+    ) -> Self {
         Self {
             db_state: DbState { db_pool },
             email_client,
             base_url: ApplicationBaseUrl(base_url),
+            hmac_secret: HmacSecret(hmac_secret),
         }
     }
 }
@@ -56,6 +67,9 @@ pub fn create_app(state: AppState) -> Router {
         .route("/subscriptions", post(subscribe))
         .route("/subscriptions/confirm", get(confirm))
         .route("/newsletters", post(publish_subscriber))
+        .route("/", get(home))
+        .route("/login", get(login_form))
+        .route("/login", post(login))
         .with_state(state)
 }
 
@@ -84,6 +98,7 @@ impl Application {
             connection_pool,
             email_client,
             configuration.application.base_url,
+            configuration.application.hmac_secret,
         );
 
         // 実行する
