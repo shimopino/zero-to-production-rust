@@ -42,6 +42,10 @@ jobs:
         with:
           key: sqlx-${{ env.SQLX_VERSION }}
 
+      - uses: taiki-e/install-action@nextest
+        with:
+          tool: nextest
+
       - name: Install sqlx-cli
         run: cargo install sqlx-cli
           --version=${{env.SQLX_VERSION}}
@@ -63,7 +67,7 @@ jobs:
           cargo sqlx prepare --check -- --bin zero2prod
 
       - name: Run tests
-        run: cargo test
+        run: cargo nextest run
 
   fmt:
     name: Rustfmt
