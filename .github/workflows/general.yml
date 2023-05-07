@@ -80,6 +80,15 @@ jobs:
       - name: Enforce formatting
         run: cargo fmt --check
 
+  # container-build:
+  #   name: Build Docker Container Image
+  #   runs-on: ubuntu-22.04
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - uses: dtolnay/rust-toolchain@stable
+  #     - name: Build Container
+  #       run: make docker-build
+
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
