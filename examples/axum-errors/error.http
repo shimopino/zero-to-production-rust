@@ -1,0 +1,10 @@
+### Hello World
+GET http://127.0.0.1:8090
+
+### Custom Rejection Check
+POST http://127.0.0.1:8090/custom-rejection
+Content-Type: application/json
+
+{
+    "name": "custom rejection error"
+}
